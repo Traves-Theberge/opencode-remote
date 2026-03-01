@@ -14,9 +14,12 @@ const defaults = {
     enabled: true,
     botToken: '',
     ownerUserId: '',
+    allowGroupChats: false,
     pollingEnabled: true,
     pollingIntervalMs: 1200,
     pollingTimeoutSec: 30,
+    messageMaxRetries: 3,
+    messageRetryDelayMs: 1500,
     webhookEnabled: false,
     webhookUrl: '',
     webhookSecret: '',
@@ -65,6 +68,10 @@ class Config {
 
   set(key, value) {
     this.store.set(key, value);
+  }
+
+  delete(key) {
+    this.store.delete(key);
   }
 
   getAllowedNumbers() {

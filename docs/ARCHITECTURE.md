@@ -40,7 +40,7 @@ This context is loaded and persisted through the `bindings` table, including opt
 
 ## Reliability Model
 
-- Message idempotency: `messages.message_id` primary key.
+- Message idempotency: `messages.dedup_key` composite key (`channel:sender:transport_message_id`).
 - Confirmation TTL enforcement: `confirmations.expires_at` cleanup.
 - Durable run retrieval: `runs` table for `/runs` and `/get <id>`.
 - Durable audit trail: `audit` table.

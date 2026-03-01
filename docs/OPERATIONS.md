@@ -92,6 +92,18 @@ Message dedupe uses inbound transport message/update IDs in SQLite `messages` ta
 - List bindings:
   - `@oc /users tglist`
 
+### Telegram delivery mode conflicts
+
+- If both webhook and polling are enabled, the app defaults to webhook mode and logs a warning.
+- Recommended: enable exactly one of:
+  - `telegram.webhookEnabled=true` (prod)
+  - `telegram.pollingEnabled=true` (dev)
+
+### Telegram group chat policy
+
+- Group chats are blocked by default (`telegram.allowGroupChats=false`).
+- To permit group/supergroup control, explicitly set `telegram.allowGroupChats=true`.
+
 ### No permission prompt notifications
 
 - Verify OpenCode global event stream is available.

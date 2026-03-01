@@ -129,6 +129,34 @@ export class LocalStore {
           ALTER TABLE bindings ADD COLUMN telegram_chat_id TEXT;
         `,
       },
+      {
+        version: 5,
+        name: 'message_dedupe_composite_key',
+        sql: `
+          CREATE TABLE IF NOT EXISTS messages_v2 (
+            dedup_key TEXT PRIMARY KEY,
+            channel TEXT NOT NULL,
+            sender TEXT NOT NULL,
+            transport_message_id TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+          );
+
+          INSERT OR IGNORE INTO messages_v2 (dedup_key, channel, sender, transport_message_id, created_at)
+          SELECT
+            ('whatsapp:' || COALESCE(phone, 'unknown') || ':' || message_id) AS dedup_key,
+            'whatsapp' AS channel,
+            COALESCE(phone, 'unknown') AS sender,
+            message_id AS transport_message_id,
+            created_at
+          FROM messages;
+
+          DROP TABLE messages;
+          ALTER TABLE messages_v2 RENAME TO messages;
+
+          CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
+          CREATE INDEX IF NOT EXISTS idx_messages_sender_created ON messages(sender, created_at DESC);
+        `,
+      },
     ];
 
     const applied = new Set(
@@ -386,18 +414,26 @@ export class LocalStore {
       .all(phone, limit);
   }
 
-  isMessageProcessed(messageId) {
-    const row = this.db.prepare('SELECT 1 FROM messages WHERE message_id = ?').get(messageId);
+  isMessageProcessed(dedupKey) {
+    const row = this.db.prepare('SELECT 1 FROM messages WHERE dedup_key = ?').get(dedupKey);
     return Boolean(row);
   }
 
-  markMessageProcessed(messageId, phone) {
+  markMessageProcessed({ dedupKey, channel, sender, transportMessageId }) {
     const now = Date.now();
     this.db
       .prepare(
-        'INSERT OR IGNORE INTO messages (message_id, phone, created_at) VALUES (?, ?, ?)',
+        `
+        INSERT OR IGNORE INTO messages (
+          dedup_key,
+          channel,
+          sender,
+          transport_message_id,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?)
+      `,
       )
-      .run(messageId, phone, now);
+      .run(dedupKey, channel, sender, transportMessageId, now);
     this.db
       .prepare('DELETE FROM messages WHERE created_at < ?')
       .run(now - 5 * 60 * 1000);

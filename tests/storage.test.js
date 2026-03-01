@@ -23,7 +23,7 @@ test('applies schema migrations and exposes versions', () => {
   const { store, cleanup } = withStore();
   try {
     const migrations = store.getSchemaMigrations();
-    assert.ok(migrations.length >= 4);
+    assert.ok(migrations.length >= 5);
     assert.equal(migrations[0].version, 1);
   } finally {
     cleanup();
@@ -67,9 +67,39 @@ test('persists and returns runs by phone', () => {
 test('deduplicates message ids', () => {
   const { store, cleanup } = withStore();
   try {
-    assert.equal(store.isMessageProcessed('msg-1'), false);
-    store.markMessageProcessed('msg-1', '+15550001111');
-    assert.equal(store.isMessageProcessed('msg-1'), true);
+    const dedupKey = 'whatsapp:+15550001111:msg-1';
+    assert.equal(store.isMessageProcessed(dedupKey), false);
+    store.markMessageProcessed({
+      dedupKey,
+      channel: 'whatsapp',
+      sender: '+15550001111',
+      transportMessageId: 'msg-1',
+    });
+    assert.equal(store.isMessageProcessed(dedupKey), true);
+  } finally {
+    cleanup();
+  }
+});
+
+test('allows same transport message id across different senders', () => {
+  const { store, cleanup } = withStore();
+  try {
+    store.markMessageProcessed({
+      dedupKey: 'telegram:111:42',
+      channel: 'telegram',
+      sender: '111',
+      transportMessageId: '42',
+    });
+
+    store.markMessageProcessed({
+      dedupKey: 'telegram:222:42',
+      channel: 'telegram',
+      sender: '222',
+      transportMessageId: '42',
+    });
+
+    assert.equal(store.isMessageProcessed('telegram:111:42'), true);
+    assert.equal(store.isMessageProcessed('telegram:222:42'), true);
   } finally {
     cleanup();
   }

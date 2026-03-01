@@ -9,7 +9,9 @@ All notable changes to this project are documented in this file.
 - Telegram Bot API transport in `src/transport/telegram.js` with:
   - long polling (dev) and webhook support (prod)
   - inline keyboard shortcuts and callback command routing
+  - callback dedupe identity based on Telegram `update_id`
   - Telegram command alias normalization to shared `@oc` command model
+  - group/supergroup blocking by default (`telegram.allowGroupChats=false`)
 - Dual-channel app orchestration in `src/index.js` for WhatsApp + Telegram.
 - Telegram identity support in SQLite:
   - `users.telegram_user_id`, `users.telegram_username`
@@ -21,6 +23,9 @@ All notable changes to this project are documented in this file.
 - Dead-letter persistence table and API:
   - migration v3 `dead_letters`
   - `LocalStore.appendDeadLetter(...)`
+- Message dedupe hardening:
+  - migration v5 composite dedupe key (`channel:sender:transport_message_id`)
+  - cross-channel and cross-user collision protection
 - Session cache maintenance improvements:
   - stale in-memory session eviction based on age and inactivity windows
 - Security hardening:
@@ -44,6 +49,11 @@ All notable changes to this project are documented in this file.
 - README updated for dual-channel setup (Telegram + WhatsApp), admin binding commands, and storage notes.
 - Audit flow consolidated to SQLite `audit` table (single write path).
 - Inbound processing now includes retry + dead-letter capture for transport failures.
+- Telegram retry settings split from WhatsApp settings:
+  - `telegram.messageMaxRetries`
+  - `telegram.messageRetryDelayMs`
+- Telegram startup mode precedence enforced:
+  - when webhook and polling are both enabled, webhook mode is selected and polling is skipped with warning
 - Command and data model documentation updated for Telegram identity and dead-letter support.
 - README upgraded with badges, full documentation matrix, and explicit quality command coverage.
 - Documentation cross-linking expanded across schema, ERD, and operations content.

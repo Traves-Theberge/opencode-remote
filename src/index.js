@@ -116,6 +116,8 @@ class App {
     return this.withSenderLock(sender || `${channel}:${event?.userId || rawFrom || 'unknown'}`, async () => {
       const body = event?.body || '';
       const messageId = event?.messageId || `${channel}-generated-${Date.now()}`;
+      const dedupSender = this.resolveDedupSender(event, sender);
+      const dedupKey = this.buildDedupKey(channel, dedupSender, messageId);
 
       if (!sender) {
         return this.formatter.formatError(
@@ -126,10 +128,15 @@ class App {
         );
       }
 
-      if (this.isDuplicate(messageId)) {
+      if (this.isDuplicate(dedupKey)) {
         return '✅ Already processed.';
       }
-      this.store.markMessageProcessed(messageId, sender);
+      this.store.markMessageProcessed({
+        dedupKey,
+        channel,
+        sender: dedupSender,
+        transportMessageId: String(messageId),
+      });
 
       this.auditEvent('message.incoming', {
         sender,
@@ -288,6 +295,22 @@ class App {
     return config.normalizePhone(event?.from || '');
   }
 
+  resolveDedupSender(event, sender) {
+    const channel = event?.channel || 'whatsapp';
+    if (channel === 'telegram') {
+      const userId = String(event?.userId || '').trim();
+      if (userId) {
+        return userId;
+      }
+    }
+
+    return sender || config.normalizePhone(event?.from || '') || String(event?.from || 'unknown');
+  }
+
+  buildDedupKey(channel, sender, messageId) {
+    return `${channel}:${sender}:${String(messageId || '')}`;
+  }
+
   seedOwnerTelegramIdentity() {
     const ownerPhone = config.normalizePhone(config.get('security.ownerNumber'));
     const ownerUserId = String(config.get('telegram.ownerUserId') || '').trim();
@@ -338,8 +361,8 @@ class App {
     }
   }
 
-  isDuplicate(messageId) {
-    return this.store.isMessageProcessed(messageId);
+  isDuplicate(dedupKey) {
+    return this.store.isMessageProcessed(dedupKey);
   }
 
   shouldSendProgress(commandType) {

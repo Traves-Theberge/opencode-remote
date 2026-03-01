@@ -55,12 +55,20 @@ export class TelegramTransport {
       logger.warn({ err: error }, 'Failed to register Telegram commands');
     });
 
-    if (config.get('telegram.webhookEnabled')) {
-      await this.startWebhook();
-    }
+    const webhookEnabled = Boolean(config.get('telegram.webhookEnabled'));
+    const pollingEnabled = Boolean(config.get('telegram.pollingEnabled'));
 
-    if (config.get('telegram.pollingEnabled')) {
+    if (webhookEnabled && pollingEnabled) {
+      logger.warn(
+        'Both telegram.webhookEnabled and telegram.pollingEnabled are true; defaulting to webhook mode and disabling polling',
+      );
+      await this.startWebhook();
+    } else if (webhookEnabled) {
+      await this.startWebhook();
+    } else if (pollingEnabled) {
       this.startPolling();
+    } else {
+      logger.warn('Telegram transport is enabled but no delivery mode is enabled');
     }
 
     logger.info('Telegram transport started');
@@ -161,8 +169,8 @@ export class TelegramTransport {
   }
 
   async processUpdateWithRetry(update) {
-    const maxRetries = Number(config.get('whatsapp.messageMaxRetries')) || 3;
-    const retryDelayMs = Number(config.get('whatsapp.messageRetryDelayMs')) || 1500;
+    const maxRetries = Number(config.get('telegram.messageMaxRetries')) || 3;
+    const retryDelayMs = Number(config.get('telegram.messageRetryDelayMs')) || 1500;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -192,18 +200,23 @@ export class TelegramTransport {
 
   async processUpdate(update) {
     if (update?.message) {
-      await this.handleMessageUpdate(update.message);
+      await this.handleMessageUpdate(update.message, update?.update_id);
       return;
     }
 
     if (update?.callback_query) {
-      await this.handleCallbackUpdate(update.callback_query);
+      await this.handleCallbackUpdate(update.callback_query, update?.update_id);
     }
   }
 
-  async handleMessageUpdate(message) {
+  async handleMessageUpdate(message, updateId) {
     const text = String(message?.text || '').trim();
     if (!text) {
+      return;
+    }
+
+    if (!this.isAllowedChatType(message?.chat?.type)) {
+      logger.info({ chatType: message?.chat?.type }, 'Ignoring Telegram group message by policy');
       return;
     }
 
@@ -216,7 +229,7 @@ export class TelegramTransport {
       channel: 'telegram',
       from: chatId,
       body: normalizedBody,
-      messageId: String(message?.message_id || ''),
+      messageId: String(updateId || message?.message_id || ''),
       timestamp: message?.date || null,
       userId,
       username,
@@ -228,12 +241,21 @@ export class TelegramTransport {
     }
   }
 
-  async handleCallbackUpdate(callback) {
+  async handleCallbackUpdate(callback, updateId) {
     const callbackId = callback?.id;
     const data = String(callback?.data || '');
     const userId = String(callback?.from?.id || '');
     const username = String(callback?.from?.username || '');
     const chatId = String(callback?.message?.chat?.id || '');
+
+    if (!this.isAllowedChatType(callback?.message?.chat?.type)) {
+      await this.api('answerCallbackQuery', {
+        callback_query_id: callbackId,
+        text: 'Group chats are disabled for this bot',
+        show_alert: false,
+      });
+      return;
+    }
 
     await this.api('answerCallbackQuery', {
       callback_query_id: callbackId,
@@ -248,7 +270,7 @@ export class TelegramTransport {
       channel: 'telegram',
       from: chatId,
       body: command,
-      messageId: String(callback?.message?.message_id || callbackId || ''),
+      messageId: String(updateId || callbackId || ''),
       timestamp: callback?.message?.date || null,
       userId,
       username,
@@ -395,6 +417,15 @@ export class TelegramTransport {
 
   sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  isAllowedChatType(chatType) {
+    const allowGroupChats = Boolean(config.get('telegram.allowGroupChats'));
+    if (allowGroupChats) {
+      return true;
+    }
+
+    return chatType === 'private';
   }
 
   async stop() {

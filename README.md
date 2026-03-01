@@ -95,6 +95,18 @@ npx conf set telegram.webhookSecret "<random-secret>"
 npx conf set telegram.pollingEnabled true
 ```
 
+6. Delivery mode behavior:
+
+- If both `telegram.webhookEnabled` and `telegram.pollingEnabled` are true, webhook mode is used and polling is disabled with a warning.
+
+7. Optional Telegram hardening/tuning:
+
+```bash
+npx conf set telegram.allowGroupChats false
+npx conf set telegram.messageMaxRetries 3
+npx conf set telegram.messageRetryDelayMs 1500
+```
+
 ## Routing Model
 
 - `@oc <text>`: pass-through prompt to OpenCode.
@@ -180,6 +192,7 @@ Examples:
 - Dangerous command deny patterns in safety engine.
 - Path traversal prevented outside workspace root.
 - Inbound retries and dead-letter capture for transport failures.
+- Composite dedupe key prevents cross-channel/cross-user message ID collisions.
 
 ## Scripts
 

@@ -12,6 +12,7 @@ Migrations are tracked in `schema_migrations` and applied sequentially at startu
 - v2: event offsets
 - v3: dead letters
 - v4: telegram identity columns
+- v5: composite message dedupe key
 
 ## Tables
 
@@ -80,11 +81,11 @@ Indexes:
 
 | Column | Type | Notes |
 |---|---|---|
-| message_id | TEXT PK | Inbound transport message/update ID |
-| phone | TEXT | Sender |
+| dedup_key | TEXT PK | Composite key: `channel:sender:transport_message_id` |
+| channel | TEXT | Transport channel (`whatsapp`, `telegram`) |
+| sender | TEXT | Sender identity used for dedupe scope |
+| transport_message_id | TEXT | Native message/update ID from transport |
 | created_at | INTEGER | Epoch ms |
-
-Note: IDs are transport message IDs (WhatsApp or Telegram), not WhatsApp-only.
 
 Indexes:
 
