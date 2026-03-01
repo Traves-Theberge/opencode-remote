@@ -20,6 +20,7 @@
     "typecheck:workspaces": "npm --workspace @opencode-remote/daemon run typecheck && npm --workspace @opencode-remote/cli run typecheck && npm --workspace @opencode-remote/bridge run typecheck",
     "test": "tsx --test tests/*.test.ts",
     "test:workspaces": "npm --workspace @opencode-remote/cli run start -- help",
+    "docs:check": "node scripts/check-doc-links.mjs",
     "verify": "node scripts/verify.mjs"
   },
   "dependencies": {

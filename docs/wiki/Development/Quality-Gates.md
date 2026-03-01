@@ -34,4 +34,4 @@ Define release gate expectations and code health checks.
 ## Related pages
 
 - `docs/wiki/Development/Testing-Strategy.md`
-- `docs/plans/2026-03-01-quality-hardening-followup-plan.md`
+- `docs/README.md`

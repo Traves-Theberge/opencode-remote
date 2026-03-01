@@ -241,6 +241,7 @@ npm run verify
 `verify` now includes:
 
 - TypeScript lint on `src/`, `tests/`, `apps/`, and `packages/`
+- docs index/link path check (`npm run docs:check`)
 - root typecheck
 - workspace typecheck
 - full tests
@@ -258,5 +259,4 @@ npm run verify
 - `docs/ERD.md`
 - `docs/OPERATIONS.md`
 - `docs/ONBOARDING.md`
-- `docs/plans/2026-03-01-control-plane-parity-phase2-plan.md`
 - `CHANGELOG.md`
