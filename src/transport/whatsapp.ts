@@ -3,8 +3,34 @@ import QRCode from 'qrcode';
 import { logger } from '../core/logger.js';
 import { config } from '../core/config.js';
 
+interface IncomingEvent {
+  from: string;
+  body: string;
+  messageId: string | null;
+  timestamp: number | null;
+}
+
+interface DeadLetterPayload {
+  channel: string;
+  messageId: string | null;
+  sender: string | null;
+  body: string;
+  error: string;
+  attempts: number;
+  payload: { timestamp: number | null };
+}
+
 export class WhatsAppTransport {
-  constructor(onMessage, options = {}) {
+  onMessage: (event: IncomingEvent) => Promise<string | null>;
+  onDeadLetter: ((event: DeadLetterPayload) => Promise<void>) | null;
+  client: Client | null;
+  connected: boolean;
+  reconnectAttempts: number;
+
+  constructor(
+    onMessage: (event: IncomingEvent) => Promise<string | null>,
+    options: { onDeadLetter?: (event: DeadLetterPayload) => Promise<void> } = {},
+  ) {
     this.onMessage = onMessage;
     this.onDeadLetter = options.onDeadLetter || null;
     this.client = null;
@@ -13,7 +39,7 @@ export class WhatsAppTransport {
   }
 
   async start() {
-    const sessionPath = config.get('whatsapp.sessionPath');
+    const sessionPath = String(config.get('whatsapp.sessionPath') || './.wwebjs_auth');
     
     this.client = new Client({
       authStrategy: new LocalAuth({
@@ -59,15 +85,22 @@ export class WhatsAppTransport {
       logger.error({ err: error }, 'WhatsApp auth failure');
     });
 
-    this.client.on('message_ack', (message, ack) => {
-      logger.debug({ ack, messageId: message.id._serialized }, 'Message ack');
+    this.client.on('message_ack', (message: unknown, ack: unknown) => {
+      const messageId =
+        typeof message === 'object' &&
+        message !== null &&
+        'id' in message &&
+        typeof (message as { id?: { _serialized?: string } }).id?._serialized === 'string'
+          ? (message as { id: { _serialized: string } }).id._serialized
+          : null;
+      logger.debug({ ack, messageId }, 'Message ack');
     });
 
     logger.info('Starting WhatsApp client...');
     await this.client.initialize();
   }
 
-  async generateQrDisplay(qr) {
+  async generateQrDisplay(qr: string): Promise<void> {
     try {
       const rendered = await QRCode.toString(qr, {
         type: 'terminal',
@@ -79,7 +112,7 @@ export class WhatsAppTransport {
     }
   }
 
-  async handleIncomingMessage(message) {
+  async handleIncomingMessage(message: { from: string; body?: string; id?: { _serialized?: string }; timestamp?: number }) {
     const from = message.from;
     const body = message.body?.trim() || '';
     
@@ -101,7 +134,7 @@ export class WhatsAppTransport {
     }
   }
 
-  async handleIncomingMessageWithRetry(message) {
+  async handleIncomingMessageWithRetry(message: { from: string; body?: string; id?: { _serialized?: string }; timestamp?: number }) {
     const maxRetries = Number(config.get('whatsapp.messageMaxRetries')) || 3;
     const retryDelayMs = Number(config.get('whatsapp.messageRetryDelayMs')) || 1500;
 
@@ -131,13 +164,17 @@ export class WhatsAppTransport {
     }
   }
 
-  async moveToDeadLetter(message, error, attempts) {
+  async moveToDeadLetter(
+    message: { from: string; body?: string; id?: { _serialized?: string }; timestamp?: number },
+    error: unknown,
+    attempts: number,
+  ) {
     const payload = {
       channel: 'whatsapp',
       messageId: message?.id?._serialized || null,
       sender: message?.from || null,
       body: message?.body || '',
-      error: String(error?.message || error),
+      error: String(error instanceof Error ? error.message : error),
       attempts,
       payload: {
         timestamp: message?.timestamp || null,
@@ -162,7 +199,7 @@ export class WhatsAppTransport {
     );
   }
 
-  async send(to, text) {
+  async send(to: string, text: string) {
     if (!this.connected || !this.client) {
       logger.warn('Cannot send: client not connected');
       return;
@@ -176,7 +213,7 @@ export class WhatsAppTransport {
     }
   }
 
-  toChatId(value) {
+  toChatId(value: string | null | undefined): string | null | undefined {
     if (!value) {
       return value;
     }
@@ -189,7 +226,7 @@ export class WhatsAppTransport {
     return `${digits}@c.us`;
   }
 
-  chunkMessage(text, maxLength) {
+  chunkMessage(text: string, maxLength: number): string[] {
     const chunks = [];
     const lines = text.split('\n');
     let current = '';
@@ -207,20 +244,20 @@ export class WhatsAppTransport {
     return chunks;
   }
 
-  sleep(ms) {
+  sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  async sendToOwner(text) {
-    const owner = config.get('security.ownerNumber');
+  async sendToOwner(text: string) {
+    const owner = String(config.get('security.ownerNumber') || '');
     if (owner) {
       await this.send(owner, text);
     }
   }
 
   handleReconnect() {
-    const maxAttempts = config.get('whatsapp.maxReconnectAttempts');
-    const delay = config.get('whatsapp.reconnectDelay');
+    const maxAttempts = Number(config.get('whatsapp.maxReconnectAttempts')) || 5;
+    const delay = Number(config.get('whatsapp.reconnectDelay')) || 5000;
 
     if (this.reconnectAttempts < maxAttempts) {
       this.reconnectAttempts++;

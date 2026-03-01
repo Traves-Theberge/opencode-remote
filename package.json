@@ -1,16 +1,16 @@
 {
   "name": "opencode-remote",
   "version": "1.0.0",
-  "description": "OpenCode Remote Control via WhatsApp",
+  "description": "OpenCode Remote Control via WhatsApp and Telegram",
   "type": "module",
-  "main": "src/index.js",
+  "main": "src/index.ts",
   "scripts": {
     "build": "npm run typecheck",
-    "lint": "eslint \"src/**/*.js\" \"tests/**/*.js\"",
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "lint": "eslint --no-error-on-unmatched-pattern \"src/**/*.js\" \"tests/**/*.js\"",
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test tests/*.test.js",
+    "test": "tsx --test tests/*.test.ts",
     "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
@@ -30,6 +30,7 @@
     "@eslint/js": "^9.21.0",
     "eslint": "^9.21.0",
     "globals": "^15.15.0",
+    "tsx": "^4.20.5",
     "typescript": "^5.8.2"
   }
 }

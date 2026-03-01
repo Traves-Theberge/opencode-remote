@@ -3,6 +3,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 export class AuditLogger {
+  filePath: string;
+  lastHash: string;
+
   constructor(filePath = './data/audit.log') {
     this.filePath = filePath;
     this.lastHash = '';

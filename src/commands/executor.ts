@@ -1,14 +1,27 @@
 import { MessageFormatter } from '../presentation/formatter.js';
+import type { OpenCodeAdapter } from '../adapter/opencode.js';
+import type { AccessController, SessionState } from '../access/controller.js';
+import type { LocalStore } from '../storage/sqlite.js';
+
+interface IntentBase {
+  type: string;
+  [key: string]: unknown;
+}
 
 export class CommandExecutor {
-  constructor(opencodeAdapter, accessController, store) {
+  adapter: OpenCodeAdapter;
+  access: AccessController;
+  store: LocalStore;
+  formatter: MessageFormatter;
+
+  constructor(opencodeAdapter: OpenCodeAdapter, accessController: AccessController, store: LocalStore) {
     this.adapter = opencodeAdapter;
     this.access = accessController;
     this.store = store;
     this.formatter = new MessageFormatter();
   }
 
-  async execute(intent, session) {
+  async execute(intent: IntentBase, session: SessionState) {
     const context = {
       sessionId: this.access.getActiveSessionId(session),
       directory: this.access.getCwd(session),
@@ -28,16 +41,17 @@ export class CommandExecutor {
       }
 
       case 'prompt': {
-        const result = await this.adapter.sendPrompt(intent.text, context);
+        const result = await this.adapter.sendPrompt(String(intent.text || ''), context);
         this.access.setActiveSessionId(session, result.sessionId);
         return this.formatter.formatPromptResult(result);
       }
 
       case 'run': {
         const startedAt = Date.now();
-        const result = await this.adapter.runCommand(intent.command, context);
+        const command = String(intent.command || '');
+        const result = await this.adapter.runCommand(command, context);
         return this.formatter.formatShellResult({
-          command: intent.command,
+          command,
           output: result.output,
           durationMs: Date.now() - startedAt,
         });
@@ -45,18 +59,20 @@ export class CommandExecutor {
 
       case 'shell': {
         const startedAt = Date.now();
-        const result = await this.adapter.runShell(intent.command, context);
+        const command = String(intent.command || '');
+        const result = await this.adapter.runShell(command, context);
         return this.formatter.formatShellResult({
-          command: intent.command,
+          command,
           output: result.output,
           durationMs: Date.now() - startedAt,
         });
       }
 
       case 'file.read': {
-        const result = await this.adapter.readFile(intent.path, context);
+        const filePath = String(intent.path || '');
+        const result = await this.adapter.readFile(filePath, context);
         return this.formatter.formatFileReadResult({
-          path: intent.path,
+          path: filePath,
           content: result.content,
         });
       }
@@ -74,23 +90,25 @@ export class CommandExecutor {
       }
 
       case 'session.status': {
-        const status = await this.adapter.getSessionStatus(intent.sessionId, context);
-        const target = intent.sessionId || context.sessionId;
+        const targetSessionId = String(intent.sessionId || '');
+        const status = await this.adapter.getSessionStatus(targetSessionId || null, context);
+        const target = targetSessionId || context.sessionId;
         return this.formatter.formatSessionStatus(status, target);
       }
 
       case 'session.use': {
-        if (!intent.sessionId) {
+        const nextSessionId = String(intent.sessionId || '');
+        if (!nextSessionId) {
           return this.formatter.formatError('Session', 'Missing session ID');
         }
-        this.access.setActiveSessionId(session, intent.sessionId);
-        this.adapter.setCurrentSessionId(intent.sessionId);
-        return this.formatter.formatSuccess('Session', `Active session set to ${intent.sessionId}`);
+        this.access.setActiveSessionId(session, nextSessionId);
+        this.adapter.setCurrentSessionId(nextSessionId);
+        return this.formatter.formatSuccess('Session', `Active session set to ${nextSessionId}`);
       }
 
       case 'session.new': {
         const created = await this.adapter.createSession(
-          intent.title || 'WhatsApp Remote Session',
+          String(intent.title || 'WhatsApp Remote Session'),
           context,
         );
         this.access.setActiveSessionId(session, created.id);
@@ -99,20 +117,21 @@ export class CommandExecutor {
       }
 
       case 'session.abort': {
-        await this.adapter.abortSession(intent.sessionId, context);
-        if (this.access.getActiveSessionId(session) === intent.sessionId) {
+        const targetSessionId = String(intent.sessionId || '');
+        await this.adapter.abortSession(targetSessionId, context);
+        if (this.access.getActiveSessionId(session) === targetSessionId) {
           this.access.setActiveSessionId(session, null);
         }
-        return this.formatter.formatSuccess('Session Abort', `Aborted session ${intent.sessionId}`);
+        return this.formatter.formatSuccess('Session Abort', `Aborted session ${targetSessionId}`);
       }
 
       case 'diff': {
-        const diff = await this.adapter.getDiff(intent.sessionId, context);
+        const diff = await this.adapter.getDiff(String(intent.sessionId || '') || null, context);
         return this.formatter.formatDiffResult(diff);
       }
 
       case 'summarize': {
-        await this.adapter.summarize(intent.sessionId, context);
+        await this.adapter.summarize(String(intent.sessionId || '') || null, context);
         return this.formatter.formatSuccess('Summarize', 'Session summarized.');
       }
 
@@ -121,7 +140,7 @@ export class CommandExecutor {
       }
 
       case 'path.cd': {
-        const result = this.access.setCwd(session, intent.path);
+        const result = this.access.setCwd(session, String(intent.path || ''));
         if (!result.ok) {
           return this.formatter.formatError('Path', result.error);
         }
@@ -129,24 +148,27 @@ export class CommandExecutor {
       }
 
       case 'file.list': {
-        const items = await this.adapter.listFiles(intent.path || '.', context);
-        return this.formatter.formatFileList(items, intent.path || '.');
+        const targetPath = String(intent.path || '.');
+        const items = await this.adapter.listFiles(targetPath, context);
+        return this.formatter.formatFileList(items, targetPath);
       }
 
       case 'find.files': {
         if (!intent.query) {
           return this.formatter.formatError('Find Files', 'Missing query');
         }
-        const items = await this.adapter.findFiles(intent.query, context);
-        return this.formatter.formatFindFilesResult(intent.query, items);
+        const query = String(intent.query || '');
+        const items = await this.adapter.findFiles(query, context);
+        return this.formatter.formatFindFilesResult(query, items);
       }
 
       case 'find.text': {
         if (!intent.pattern) {
           return this.formatter.formatError('Find Text', 'Missing pattern');
         }
-        const matches = await this.adapter.findText(intent.pattern, context);
-        return this.formatter.formatFindTextResult(intent.pattern, matches);
+        const pattern = String(intent.pattern || '');
+        const matches = await this.adapter.findText(pattern, context);
+        return this.formatter.formatFindTextResult(pattern, matches);
       }
 
       case 'project.list': {
@@ -155,8 +177,9 @@ export class CommandExecutor {
           return this.formatter.formatWarning('Projects', 'No projects found.');
         }
         const lines = projects.slice(0, 20).map((project) => {
-          const path = project.path || project.directory || '(unknown path)';
-          return `• \`${project.id}\` · ${path}`;
+          const normalized = project as { id?: string; path?: string; directory?: string };
+          const projectPath = normalized.path || normalized.directory || '(unknown path)';
+          return `• \`${normalized.id || '(unknown)'}\` · ${projectPath}`;
         });
         return [
           this.formatter.header('Projects'),
@@ -172,27 +195,29 @@ export class CommandExecutor {
         if (!intent.projectId) {
           return this.formatter.formatError('Project', 'Missing project ID');
         }
-        const project = await this.adapter.getProjectById(intent.projectId);
+        const projectId = String(intent.projectId || '');
+        const project = await this.adapter.getProjectById(projectId);
         if (!project) {
-          return this.formatter.formatError('Project', `Project not found: ${intent.projectId}`);
+          return this.formatter.formatError('Project', `Project not found: ${projectId}`);
         }
-        const directory = project.path || project.directory;
+        const normalizedProject = project as { path?: string; directory?: string };
+        const directory = normalizedProject.path || normalizedProject.directory || '';
         this.access.setWorkspaceRoot(session, directory);
         const cwdSet = this.access.setCwd(session, '.');
         if (!cwdSet.ok) {
           return this.formatter.formatError('Project', cwdSet.error);
         }
-        return this.formatter.formatSuccess('Project', `Using project ${intent.projectId} at ${cwdSet.cwd}`);
+        return this.formatter.formatSuccess('Project', `Using project ${projectId} at ${cwdSet.cwd}`);
       }
 
       case 'permission.reply': {
         if (!intent.permissionId) {
           return this.formatter.formatError('Permission', 'Missing permission ID');
         }
-        const response = intent.response || 'once';
+        const response = String(intent.response || 'once');
         const result = await this.adapter.replyPermission(
           context.sessionId,
-          intent.permissionId,
+          String(intent.permissionId),
           response,
           context,
         );
@@ -206,7 +231,7 @@ export class CommandExecutor {
         if (!intent.runId) {
           return this.formatter.formatError('Run Lookup', 'Missing run ID');
         }
-        const item = this.store.getRun(intent.runId, session.phoneNumber);
+        const item = this.store.getRun(String(intent.runId), session.phoneNumber);
         if (!item) {
           return this.formatter.formatRunLookup(null);
         }
@@ -229,7 +254,7 @@ export class CommandExecutor {
       }
 
       case 'abort': {
-        const result = await this.adapter.abort(context);
+        const result = (await this.adapter.abort(context)) as { success: boolean; error?: string };
         if (!result.success) {
           return this.formatter.formatError(
             'Abort',

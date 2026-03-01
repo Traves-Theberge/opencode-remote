@@ -2,6 +2,49 @@ import http from 'node:http';
 import { logger } from '../core/logger.js';
 import { config } from '../core/config.js';
 
+interface TelegramInboundEvent {
+  channel: 'telegram';
+  from: string;
+  body: string;
+  messageId: string;
+  timestamp: number | null;
+  userId: string;
+  username: string;
+  chatId: string;
+  callbackData?: string;
+}
+
+interface TelegramDeadLetter {
+  channel: 'telegram';
+  messageId: string;
+  sender: string | null;
+  body: string;
+  error: string;
+  attempts: number;
+  payload: unknown;
+}
+
+type TelegramUpdate = {
+  update_id?: number;
+  message?: {
+    text?: string;
+    message_id?: number;
+    date?: number;
+    from?: { id?: number; username?: string };
+    chat?: { id?: number; type?: string };
+  };
+  callback_query?: {
+    id?: string;
+    data?: string;
+    from?: { id?: number; username?: string };
+    message?: {
+      message_id?: number;
+      date?: number;
+      chat?: { id?: number; type?: string };
+    };
+  };
+};
+
 const DEFAULT_KEYBOARD = {
   inline_keyboard: [
     [
@@ -18,7 +61,17 @@ const DEFAULT_KEYBOARD = {
 };
 
 export class TelegramTransport {
-  constructor(onMessage, options = {}) {
+  onMessage: (event: TelegramInboundEvent) => Promise<string | null>;
+  onDeadLetter: ((event: TelegramDeadLetter) => Promise<void>) | null;
+  running: boolean;
+  offset: number;
+  poller: NodeJS.Timeout | null;
+  webhookServer: http.Server | null;
+
+  constructor(
+    onMessage: (event: TelegramInboundEvent) => Promise<string | null>,
+    options: { onDeadLetter?: (event: TelegramDeadLetter) => Promise<void> } = {},
+  ) {
     this.onMessage = onMessage;
     this.onDeadLetter = options.onDeadLetter || null;
     this.running = false;
@@ -75,16 +128,16 @@ export class TelegramTransport {
   }
 
   async startWebhook() {
-    const webhookUrl = config.get('telegram.webhookUrl');
+    const webhookUrl = String(config.get('telegram.webhookUrl') || '');
     if (!webhookUrl) {
       logger.warn('telegram.webhookEnabled=true but webhookUrl is empty; skipping webhook mode');
       return;
     }
 
-    const secret = config.get('telegram.webhookSecret') || '';
-    const host = config.get('telegram.webhookHost') || '0.0.0.0';
+    const secret = String(config.get('telegram.webhookSecret') || '');
+    const host = String(config.get('telegram.webhookHost') || '0.0.0.0');
     const port = Number(config.get('telegram.webhookPort')) || 4097;
-    const path = config.get('telegram.webhookPath') || '/telegram/webhook';
+    const path = String(config.get('telegram.webhookPath') || '/telegram/webhook');
 
     await this.api('setWebhook', {
       url: webhookUrl,
@@ -124,8 +177,8 @@ export class TelegramTransport {
       res.end('ok');
     });
 
-    await new Promise((resolve) => {
-      this.webhookServer.listen(port, host, resolve);
+    await new Promise<void>((resolve) => {
+      this.webhookServer?.listen(port, host, () => resolve());
     });
 
     logger.info({ webhookUrl, host, port, path }, 'Telegram webhook server started');
@@ -168,7 +221,7 @@ export class TelegramTransport {
     }
   }
 
-  async processUpdateWithRetry(update) {
+  async processUpdateWithRetry(update: TelegramUpdate) {
     const maxRetries = Number(config.get('telegram.messageMaxRetries')) || 3;
     const retryDelayMs = Number(config.get('telegram.messageRetryDelayMs')) || 1500;
 
@@ -198,7 +251,7 @@ export class TelegramTransport {
     }
   }
 
-  async processUpdate(update) {
+  async processUpdate(update: TelegramUpdate) {
     if (update?.message) {
       await this.handleMessageUpdate(update.message, update?.update_id);
       return;
@@ -209,7 +262,7 @@ export class TelegramTransport {
     }
   }
 
-  async handleMessageUpdate(message, updateId) {
+  async handleMessageUpdate(message: NonNullable<TelegramUpdate['message']>, updateId?: number) {
     const text = String(message?.text || '').trim();
     if (!text) {
       return;
@@ -241,7 +294,10 @@ export class TelegramTransport {
     }
   }
 
-  async handleCallbackUpdate(callback, updateId) {
+  async handleCallbackUpdate(
+    callback: NonNullable<TelegramUpdate['callback_query']>,
+    updateId?: number,
+  ) {
     const callbackId = callback?.id;
     const data = String(callback?.data || '');
     const userId = String(callback?.from?.id || '');
@@ -283,7 +339,7 @@ export class TelegramTransport {
     }
   }
 
-  normalizeBody(text) {
+  normalizeBody(text: string): string {
     if (!text) {
       return '';
     }
@@ -299,7 +355,7 @@ export class TelegramTransport {
     return `@oc ${text}`;
   }
 
-  callbackToCommand(data) {
+  callbackToCommand(data: string): string | null {
     const mapped = {
       'oc:status': '@oc /status',
       'oc:session_list': '@oc /session list',
@@ -322,7 +378,7 @@ export class TelegramTransport {
     return null;
   }
 
-  async send(to, text) {
+  async send(to: string, text: string) {
     if (!this.running) {
       return;
     }
@@ -342,7 +398,7 @@ export class TelegramTransport {
     }
   }
 
-  chunkMessage(text, maxLength) {
+  chunkMessage(text: string, maxLength: number): string[] {
     const chunks = [];
     const lines = text.split('\n');
     let current = '';
@@ -365,18 +421,18 @@ export class TelegramTransport {
     return chunks;
   }
 
-  async moveToDeadLetter(update, error, attempts) {
+  async moveToDeadLetter(update: TelegramUpdate, error: unknown, attempts: number) {
     const sender =
       String(update?.message?.from?.id || update?.callback_query?.from?.id || '') || null;
     const body =
       update?.message?.text || update?.callback_query?.data || JSON.stringify(update || {});
 
     const payload = {
-      channel: 'telegram',
+      channel: 'telegram' as const,
       messageId: String(update?.update_id || ''),
       sender,
       body,
-      error: String(error?.message || error),
+      error: String(error instanceof Error ? error.message : error),
       attempts,
       payload: update,
     };
@@ -390,7 +446,7 @@ export class TelegramTransport {
     }
   }
 
-  async api(method, body) {
+  async api(method: string, body: Record<string, unknown>) {
     const token = config.get('telegram.botToken');
     const url = `https://api.telegram.org/bot${token}/${method}`;
 
@@ -415,11 +471,11 @@ export class TelegramTransport {
     return data;
   }
 
-  sleep(ms) {
+  sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  isAllowedChatType(chatType) {
+  isAllowedChatType(chatType: string | undefined): boolean {
     const allowGroupChats = Boolean(config.get('telegram.allowGroupChats'));
     if (allowGroupChats) {
       return true;

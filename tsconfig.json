@@ -3,11 +3,10 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "allowJs": true,
-    "checkJs": false,
+    "allowJs": false,
     "noEmit": true,
     "strict": false,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.js", "tests/**/*.js", "eslint.config.js"]
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
 }

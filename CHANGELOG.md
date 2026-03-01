@@ -6,13 +6,13 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
-- Telegram Bot API transport in `src/transport/telegram.js` with:
+- Telegram Bot API transport in `src/transport/telegram.ts` with:
   - long polling (dev) and webhook support (prod)
   - inline keyboard shortcuts and callback command routing
   - callback dedupe identity based on Telegram `update_id`
   - Telegram command alias normalization to shared `@oc` command model
   - group/supergroup blocking by default (`telegram.allowGroupChats=false`)
-- Dual-channel app orchestration in `src/index.js` for WhatsApp + Telegram.
+- Dual-channel app orchestration in `src/index.ts` for WhatsApp + Telegram.
 - Telegram identity support in SQLite:
   - `users.telegram_user_id`, `users.telegram_username`
   - `bindings.telegram_chat_id`
@@ -43,6 +43,11 @@ All notable changes to this project are documented in this file.
   - `docs/OPERATIONS.md`
   - `docs/README.md`
   - `RELEASE_NOTES_v1.1.0.md`
+- Full TypeScript migration:
+  - source files moved from `.js` to `.ts`
+  - test files moved from `.test.js` to `.test.ts`
+  - runtime switched to `tsx` (`npm start`, `npm run dev`, `npm test`)
+  - no explicit `any` type usage in `src/` and `tests/`
 
 ### Changed
 

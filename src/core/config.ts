@@ -55,28 +55,30 @@ const defaults = {
 };
 
 class Config {
+  private store: Conf<Record<string, unknown>>;
+
   constructor() {
     this.store = new Conf({
       projectName: 'opencode-remote',
       defaults,
-    });
+    }) as unknown as Conf<Record<string, unknown>>;
   }
 
-  get(key) {
+  get(key: string): unknown {
     return this.store.get(key);
   }
 
-  set(key, value) {
+  set(key: string, value: unknown): void {
     this.store.set(key, value);
   }
 
-  delete(key) {
+  delete(key: string): void {
     this.store.delete(key);
   }
 
   getAllowedNumbers() {
     const owner = this.normalizePhone(this.get('security.ownerNumber'));
-    const allowed = (this.get('security.allowedNumbers') || []).map((number) =>
+    const allowed = ((this.get('security.allowedNumbers') as string[] | undefined) || []).map((number) =>
       this.normalizePhone(number),
     );
     const all = new Set([owner, ...allowed]);
@@ -109,7 +111,7 @@ class Config {
 
   addAllowedNumber(number) {
     const normalized = this.normalizePhone(number);
-    const allowed = (this.get('security.allowedNumbers') || []).map((entry) =>
+    const allowed = ((this.get('security.allowedNumbers') as string[] | undefined) || []).map((entry) =>
       this.normalizePhone(entry),
     );
 
@@ -121,7 +123,7 @@ class Config {
 
   removeAllowedNumber(number) {
     const normalized = this.normalizePhone(number);
-    const allowed = (this.get('security.allowedNumbers') || []).map((entry) =>
+    const allowed = ((this.get('security.allowedNumbers') as string[] | undefined) || []).map((entry) =>
       this.normalizePhone(entry),
     );
     const filtered = allowed.filter((entry) => entry !== normalized);

@@ -1,5 +1,34 @@
 import { logger } from '../core/logger.js';
 import { config } from '../core/config.js';
+import type { SessionState } from '../access/controller.js';
+
+interface ParsedCommand {
+  command: string;
+  tier: string;
+  args: string[];
+  raw: string;
+}
+
+interface RouteContext {
+  sender: string;
+  role: string;
+}
+
+interface AccessControllerLike {
+  createConfirm(action: { type: string; args: string[]; context: RouteContext }, session: SessionState): string;
+  verifyConfirm(
+    confirmId: string,
+    session: SessionState,
+  ): { valid: boolean; error?: string; action?: { type: string; args: string[]; context: RouteContext } };
+  listAllowedNumbers(): string[];
+  isOwner(phoneNumber: string): boolean;
+  addAllowedNumber(number: string, addedBy: string): void;
+  removeAllowedNumber(number: string, removedBy: string): void;
+  bindTelegramUser(phone: string, telegramUserId: string, telegramUsername: string | null, actor: string): void;
+  unbindTelegramUser(telegramUserId: string, actor: string): void;
+  listTelegramBindings(): Array<{ phone: string; telegram_user_id: string; telegram_username: string | null }>;
+  sessions: Map<string, SessionState>;
+}
 
 const COMMAND_TIERS = {
   status: 'safe',
@@ -37,11 +66,13 @@ const COMMAND_TIERS = {
 };
 
 export class CommandRouter {
-  constructor(accessController) {
+  accessController: AccessControllerLike;
+
+  constructor(accessController: AccessControllerLike) {
     this.accessController = accessController;
   }
 
-  async parse(rawMessage) {
+  async parse(rawMessage: string): Promise<ParsedCommand | null> {
     const text = rawMessage.trim();
     if (!text.toLowerCase().startsWith('@oc')) {
       return null;
@@ -59,7 +90,7 @@ export class CommandRouter {
     return this.parseSlashCommand(content);
   }
 
-  parseSlashCommand(content) {
+  parseSlashCommand(content: string): ParsedCommand {
     const line = content.slice(1).trim();
     const parts = line.split(/\s+/).filter(Boolean);
     const base = (parts[0] || '').toLowerCase();
@@ -124,7 +155,7 @@ export class CommandRouter {
     }
   }
 
-  parseUsers(parts) {
+  parseUsers(parts: string[]): ParsedCommand {
     const action = (parts[0] || '').toLowerCase();
     if (action === 'list') {
       return this.toParsed('users list', []);
@@ -147,7 +178,7 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
-  parseSession(parts) {
+  parseSession(parts: string[]): ParsedCommand {
     const action = (parts[0] || '').toLowerCase();
     if (action === 'list') {
       return this.toParsed('session list', []);
@@ -167,13 +198,13 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
-  parsePermission(parts) {
+  parsePermission(parts: string[]): ParsedCommand {
     const permissionId = parts[0] || '';
     const response = (parts[1] || 'once').toLowerCase();
     return this.toParsed('permission reply', [permissionId, response]);
   }
 
-  parseProject(parts) {
+  parseProject(parts: string[]): ParsedCommand {
     const action = (parts[0] || '').toLowerCase();
     if (action === 'use') {
       return this.toParsed('project use', [parts[1] || '']);
@@ -181,7 +212,7 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
-  extractPhone(tokens) {
+  extractPhone(tokens: string[]): string {
     for (const token of tokens) {
       const normalized = config.normalizePhone(token);
       if (config.isValidPhone(normalized)) {
@@ -191,7 +222,7 @@ export class CommandRouter {
     return '';
   }
 
-  toParsed(command, args) {
+  toParsed(command: string, args: string[]): ParsedCommand {
     return {
       command,
       tier: COMMAND_TIERS[command] || 'safe',
@@ -200,7 +231,7 @@ export class CommandRouter {
     };
   }
 
-  stripAlias(text) {
+  stripAlias(text: string): string {
     const parts = text.split(/\s+/);
     if (parts[0].toLowerCase() !== '@oc') {
       return '';
@@ -208,7 +239,7 @@ export class CommandRouter {
     return text.slice(parts[0].length).trim();
   }
 
-  async route(parsed, session, context) {
+  async route(parsed: ParsedCommand, session: SessionState, context: RouteContext) {
     const { command, tier, args } = parsed;
     logger.info({ command, tier, session: session.phoneNumber }, 'Routing command');
 
@@ -228,7 +259,7 @@ export class CommandRouter {
     return handler(args, session, context);
   }
 
-  getHandler(command) {
+  getHandler(command: string) {
     const handlers = {
       status: this.handleStatus.bind(this),
       help: this.handleHelp.bind(this),
@@ -271,15 +302,15 @@ export class CommandRouter {
     return { type: 'status' };
   }
 
-  async handlePrompt(args) {
+  async handlePrompt(args: string[]) {
     return { type: 'prompt', text: args.join(' ').trim() };
   }
 
-  async handleRun(args) {
+  async handleRun(args: string[]) {
     return { type: 'run', command: args.join(' ').trim() };
   }
 
-  async handleShell(args) {
+  async handleShell(args: string[]) {
     return { type: 'shell', command: args.join(' ').trim() };
   }
 
@@ -287,27 +318,27 @@ export class CommandRouter {
     return { type: 'session.list' };
   }
 
-  async handleSessionStatus(args) {
+  async handleSessionStatus(args: string[]) {
     return { type: 'session.status', sessionId: args[0] || null };
   }
 
-  async handleSessionUse(args) {
+  async handleSessionUse(args: string[]) {
     return { type: 'session.use', sessionId: args[0] };
   }
 
-  async handleSessionNew(args) {
+  async handleSessionNew(args: string[]) {
     return { type: 'session.new', title: args.join(' ').trim() };
   }
 
-  async handleSessionAbort(args) {
+  async handleSessionAbort(args: string[]) {
     return { type: 'session.abort', sessionId: args[0] };
   }
 
-  async handleDiff(args) {
+  async handleDiff(args: string[]) {
     return { type: 'diff', sessionId: args[0] || null };
   }
 
-  async handleSummarize(args) {
+  async handleSummarize(args: string[]) {
     return { type: 'summarize', sessionId: args[0] || null };
   }
 
@@ -315,19 +346,19 @@ export class CommandRouter {
     return { type: 'path.pwd' };
   }
 
-  async handleCd(args) {
+  async handleCd(args: string[]) {
     return { type: 'path.cd', path: args.join(' ').trim() };
   }
 
-  async handleLs(args) {
+  async handleLs(args: string[]) {
     return { type: 'file.list', path: args.join(' ').trim() || '.' };
   }
 
-  async handleFind(args) {
+  async handleFind(args: string[]) {
     return { type: 'find.files', query: args.join(' ').trim() };
   }
 
-  async handleGrep(args) {
+  async handleGrep(args: string[]) {
     return { type: 'find.text', pattern: args.join(' ').trim() };
   }
 
@@ -335,11 +366,11 @@ export class CommandRouter {
     return { type: 'project.list' };
   }
 
-  async handleProjectUse(args) {
+  async handleProjectUse(args: string[]) {
     return { type: 'project.use', projectId: args[0] };
   }
 
-  async handlePermissionReply(args) {
+  async handlePermissionReply(args: string[]) {
     return {
       type: 'permission.reply',
       permissionId: args[0],
@@ -347,7 +378,7 @@ export class CommandRouter {
     };
   }
 
-  async handleOutputGet(args) {
+  async handleOutputGet(args: string[]) {
     return {
       type: 'output.get',
       runId: args[0],
@@ -364,7 +395,7 @@ export class CommandRouter {
     return { type: 'abort' };
   }
 
-  async handleConfirm(args, session) {
+  async handleConfirm(args: string[], session: SessionState) {
     const confirmId = String(args[0] || '').toUpperCase();
     const result = this.accessController.verifyConfirm(confirmId, session);
 
@@ -392,7 +423,7 @@ export class CommandRouter {
     return `📋 Allowed users:\n${list || '(none)'}`;
   }
 
-  async handleUsersAdd(args, session) {
+  async handleUsersAdd(args: string[], session: SessionState) {
     if (!this.accessController.isOwner(session.phoneNumber)) {
       return '❌ Only the owner can add users';
     }
@@ -406,7 +437,7 @@ export class CommandRouter {
     return `✅ Added ${phone} to allowlist`;
   }
 
-  async handleUsersRemove(args, session) {
+  async handleUsersRemove(args: string[], session: SessionState) {
     if (!this.accessController.isOwner(session.phoneNumber)) {
       return '❌ Only the owner can remove users';
     }
@@ -420,7 +451,7 @@ export class CommandRouter {
     return `✅ Removed ${phone} from allowlist`;
   }
 
-  async handleUsersBindTelegram(args, session) {
+  async handleUsersBindTelegram(args: string[], session: SessionState) {
     if (!this.accessController.isOwner(session.phoneNumber)) {
       return '❌ Only the owner can bind Telegram users';
     }
@@ -444,7 +475,7 @@ export class CommandRouter {
     }
   }
 
-  async handleUsersUnbindTelegram(args, session) {
+  async handleUsersUnbindTelegram(args: string[], session: SessionState) {
     if (!this.accessController.isOwner(session.phoneNumber)) {
       return '❌ Only the owner can unbind Telegram users';
     }
@@ -458,7 +489,7 @@ export class CommandRouter {
     return `✅ Unbound Telegram user ${telegramUserId}`;
   }
 
-  async handleUsersTelegramList(args, session) {
+  async handleUsersTelegramList(args: string[], session: SessionState) {
     if (!this.accessController.isOwner(session.phoneNumber)) {
       return '❌ Only the owner can list Telegram bindings';
     }
@@ -476,7 +507,7 @@ export class CommandRouter {
     return ['📋 Telegram bindings:', ...lines].join('\n');
   }
 
-  async handleLock(args, session) {
+  async handleLock(_args: string[], session: SessionState) {
     if (!this.accessController.isOwner(session.phoneNumber)) {
       return '❌ Only the owner can lock the system';
     }
@@ -488,7 +519,7 @@ export class CommandRouter {
     return '🔒 System locked. All sessions paused.';
   }
 
-  async handleUnlock(args, session) {
+  async handleUnlock(_args: string[], session: SessionState) {
     if (!this.accessController.isOwner(session.phoneNumber)) {
       return '❌ Only the owner can unlock the system';
     }
@@ -543,11 +574,11 @@ Admin:
 • @oc /unlock`;
   }
 
-  formatPendingConfirmation(confirmId, command) {
+  formatPendingConfirmation(confirmId: string, command: string): string {
     return `⚠️ This action (${command}) requires confirmation.\n\nConfirmation ID: \`${confirmId}\`\n\nReply with:\n@oc /confirm ${confirmId}\n\nThis confirmation expires in 5 minutes.`;
   }
 
-  formatError(message) {
+  formatError(message: string): string {
     return `❌ Error: ${message}`;
   }
 }

@@ -4,6 +4,11 @@ import { TelegramTransport } from '../src/transport/telegram.js';
 import { config } from '../src/core/config.js';
 
 class TelegramTransportStub extends TelegramTransport {
+  apiCalls: Array<{ method: string; body: Record<string, unknown> }>;
+  sent: Array<{ to: string; text: string }>;
+  startedWebhook: boolean;
+  startedPolling: boolean;
+
   constructor(onMessage) {
     super(onMessage);
     this.apiCalls = [];

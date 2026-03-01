@@ -2,21 +2,34 @@ import { createOpencodeClient } from '@opencode-ai/sdk';
 import { config } from '../core/config.js';
 import { logger } from '../core/logger.js';
 
+type OpencodeClient = ReturnType<typeof createOpencodeClient>;
+
+interface AdapterContext {
+  sessionId?: string | null;
+  directory?: string | null;
+}
+
 export class OpenCodeAdapter {
+  client: OpencodeClient;
+  server: { close: () => void } | null;
+  currentSessionId: string | null;
+  eventAbortController: AbortController | null;
+  eventLoop: Promise<void> | null;
+
   constructor() {
-    this.client = null;
+    this.client = null as unknown as OpencodeClient;
     this.server = null;
     this.currentSessionId = null;
     this.eventAbortController = null;
     this.eventLoop = null;
   }
 
-  resolveSessionId(context = {}) {
+  resolveSessionId(context: AdapterContext = {}): string | null {
     return context.sessionId || this.currentSessionId;
   }
 
-  buildQuery(context = {}) {
-    const query = {};
+  buildQuery(context: AdapterContext = {}): { directory?: string } | undefined {
+    const query: { directory?: string } = {};
     if (context.directory) {
       query.directory = context.directory;
     }
@@ -24,7 +37,7 @@ export class OpenCodeAdapter {
   }
 
   async start() {
-    const serverUrl = config.get('opencode.serverUrl');
+    const serverUrl = String(config.get('opencode.serverUrl') || 'http://localhost:4096');
     
     logger.info({ serverUrl }, 'Connecting to OpenCode server');
     
@@ -43,7 +56,7 @@ export class OpenCodeAdapter {
     }
   }
 
-  async createSession(title = 'WhatsApp Remote Session', context = {}) {
+  async createSession(title = 'WhatsApp Remote Session', context: AdapterContext = {}) {
     try {
       const result = await this.client.session.create({
         body: { title },
@@ -60,7 +73,7 @@ export class OpenCodeAdapter {
     }
   }
 
-  async sendPrompt(text, options = {}) {
+  async sendPrompt(text: string, options: AdapterContext = {}) {
     const sessionId = this.resolveSessionId(options);
     
     if (!sessionId) {
@@ -90,7 +103,7 @@ export class OpenCodeAdapter {
     }
   }
 
-  async runCommand(command, context = {}) {
+  async runCommand(command: string, context: AdapterContext = {}) {
     const sessionId = this.resolveSessionId(context);
 
     if (!sessionId) {
@@ -116,7 +129,7 @@ export class OpenCodeAdapter {
     }
   }
 
-  async runShell(command, context = {}) {
+  async runShell(command: string, context: AdapterContext = {}) {
     const sessionId = this.resolveSessionId(context);
     
     if (!sessionId) {
@@ -142,7 +155,7 @@ export class OpenCodeAdapter {
     }
   }
 
-  async readFile(path, context = {}) {
+  async readFile(path: string, context: AdapterContext = {}) {
     try {
       const result = await this.client.file.read({
         query: {
@@ -161,7 +174,7 @@ export class OpenCodeAdapter {
     }
   }
 
-  async listSessions(context = {}) {
+  async listSessions(context: AdapterContext = {}) {
     try {
       const result = await this.client.session.list({
         query: this.buildQuery(context),
@@ -173,7 +186,7 @@ export class OpenCodeAdapter {
     }
   }
 
-  async abortSession(sessionId, context = {}) {
+  async abortSession(sessionId: string, context: AdapterContext = {}) {
     try {
       await this.client.session.abort({
         path: { id: sessionId },
@@ -187,7 +200,7 @@ export class OpenCodeAdapter {
     }
   }
 
-  async getDiff(sessionId, context = {}) {
+  async getDiff(sessionId: string | null, context: AdapterContext = {}) {
     try {
       const result = await this.client.session.diff({
         path: { id: sessionId || this.resolveSessionId(context) },
@@ -201,7 +214,7 @@ export class OpenCodeAdapter {
     }
   }
 
-  async summarize(sessionId, context = {}) {
+  async summarize(sessionId: string | null, context: AdapterContext = {}) {
     try {
       const summaryModel = await this.getSummaryModel();
       await this.client.session.summarize({
@@ -217,7 +230,7 @@ export class OpenCodeAdapter {
     }
   }
 
-  async abort(context = {}) {
+  async abort(context: AdapterContext = {}) {
     const sessionId = this.resolveSessionId(context);
     if (!sessionId) {
       return { success: false, error: 'No active session' };
@@ -229,7 +242,7 @@ export class OpenCodeAdapter {
   async getCurrentPath() {
     try {
       const result = await this.client.path.get();
-      const data = result?.data || {};
+      const data = (result?.data || {}) as { path?: string; cwd?: string; directory?: string };
       return data.path || data.cwd || data.directory || null;
     } catch (error) {
       logger.warn({ err: error }, 'Failed to get current path');
@@ -242,7 +255,7 @@ export class OpenCodeAdapter {
     return result.data || [];
   }
 
-  async listFiles(pathQuery = '.', context = {}) {
+  async listFiles(pathQuery = '.', context: AdapterContext = {}) {
     const result = await this.client.file.list({
       query: {
         path: pathQuery,
@@ -252,7 +265,7 @@ export class OpenCodeAdapter {
     return result.data || [];
   }
 
-  async findFiles(query, context = {}) {
+  async findFiles(query: string, context: AdapterContext = {}) {
     const result = await this.client.find.files({
       query: {
         query,
@@ -262,7 +275,7 @@ export class OpenCodeAdapter {
     return result.data || [];
   }
 
-  async findText(pattern, context = {}) {
+  async findText(pattern: string, context: AdapterContext = {}) {
     const result = await this.client.find.text({
       query: {
         pattern,
@@ -272,7 +285,7 @@ export class OpenCodeAdapter {
     return result.data || [];
   }
 
-  async getSessionStatus(sessionId, context = {}) {
+  async getSessionStatus(sessionId: string | null, context: AdapterContext = {}) {
     const targetSessionId = sessionId || this.resolveSessionId(context);
     if (!targetSessionId) {
       return null;
@@ -283,19 +296,23 @@ export class OpenCodeAdapter {
         id: targetSessionId,
       },
       query: this.buildQuery(context),
-    });
+    } as never);
 
     return result.data || null;
   }
 
-  async replyPermission(sessionId, permissionId, response, context = {}) {
+  async replyPermission(
+    sessionId: string | null,
+    permissionId: string,
+    response: string,
+    context: AdapterContext = {},
+  ) {
     const targetSessionId = sessionId || this.resolveSessionId(context);
     if (!targetSessionId) {
       throw new Error('No active session');
     }
 
-    const valid = ['once', 'always', 'reject'];
-    if (!valid.includes(response)) {
+    if (response !== 'once' && response !== 'always' && response !== 'reject') {
       throw new Error('Invalid permission response. Use once, always, or reject.');
     }
 
@@ -305,25 +322,29 @@ export class OpenCodeAdapter {
         permissionID: permissionId,
       },
       body: {
-        response,
+        response: response as 'once' | 'always' | 'reject',
       },
       query: this.buildQuery(context),
-    });
+    } as never);
 
     return { success: true, sessionId: targetSessionId, permissionId, response };
   }
 
-  async getProjectById(projectId) {
+  async getProjectById(projectId: string) {
     const projects = await this.listProjects();
     return projects.find((project) => project.id === projectId) || null;
   }
 
-  setCurrentSessionId(sessionId) {
+  setCurrentSessionId(sessionId: string | null): void {
     this.currentSessionId = sessionId || null;
   }
 
-  async subscribeGlobalEvents(onEvent) {
-    if (!this.client?.global?.event?.sse) {
+  async subscribeGlobalEvents(onEvent: (event: unknown) => Promise<void>) {
+    const eventApi = (this.client.global.event as unknown as {
+      sse?: (options?: { signal?: AbortSignal }) => Promise<{ stream: AsyncIterable<unknown> }>;
+    }).sse;
+
+    if (!eventApi) {
       throw new Error('Global event SSE is not available on this SDK build');
     }
 
@@ -335,7 +356,7 @@ export class OpenCodeAdapter {
     const controller = new AbortController();
     this.eventAbortController = controller;
 
-    const streamResult = await this.client.global.event.sse({
+    const streamResult = await eventApi({
       signal: controller.signal,
     });
 
@@ -354,13 +375,13 @@ export class OpenCodeAdapter {
     return () => controller.abort();
   }
 
-  formatParts(parts) {
+  formatParts(parts: Array<{ type?: string; text?: string; name?: string; input?: unknown; content?: string }>) {
     if (!parts || !Array.isArray(parts)) {
       return '';
     }
     
     return parts
-      .map(part => {
+      .map((part) => {
         if (part.type === 'text') {
           return part.text;
         }
@@ -375,13 +396,16 @@ export class OpenCodeAdapter {
       .join('\n');
   }
 
-  formatPayload(payload) {
+  formatPayload(payload: { parts?: Array<{ type?: string; text?: string; name?: string; input?: unknown; content?: string }> } | string | unknown) {
     if (!payload) {
       return '';
     }
 
-    if (Array.isArray(payload.parts)) {
-      return this.formatParts(payload.parts);
+    if (typeof payload === 'object' && payload !== null && 'parts' in payload) {
+      const parts = (payload as { parts?: Array<{ type?: string; text?: string; name?: string; input?: unknown; content?: string }> }).parts;
+      if (Array.isArray(parts)) {
+        return this.formatParts(parts);
+      }
     }
 
     if (typeof payload === 'string') {

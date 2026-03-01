@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { CommandRouter } from '../src/router/index.js';
 
 class AccessControllerStub {
+  sessions = new Map();
+
   createConfirm() {
     return 'CONFIRM01';
   }

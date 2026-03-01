@@ -3,6 +3,7 @@ import { config } from './core/config.js';
 import { WhatsAppTransport } from './transport/whatsapp.js';
 import { TelegramTransport } from './transport/telegram.js';
 import { AccessController } from './access/controller.js';
+import type { SessionState } from './access/controller.js';
 import { CommandRouter } from './router/index.js';
 import { OpenCodeAdapter } from './adapter/opencode.js';
 import { SafetyEngine } from './safety/engine.js';
@@ -11,9 +12,49 @@ import { MessageFormatter } from './presentation/formatter.js';
 import { LocalStore } from './storage/sqlite.js';
 import { randomUUID } from 'node:crypto';
 
+interface IncomingMessageEvent {
+  channel?: 'whatsapp' | 'telegram';
+  from?: string;
+  body?: string;
+  messageId?: string;
+  timestamp?: number | null;
+  userId?: string;
+  username?: string;
+  chatId?: string;
+  callbackData?: string;
+}
+
+interface DeadLetterEvent {
+  channel: string;
+  messageId: string | null;
+  sender: string | null;
+  body?: string | null;
+  attempts: number;
+  error: string;
+  payload?: unknown;
+}
+
+type TransportLike = {
+  send: (to: string, text: string) => Promise<void>;
+  stop: () => Promise<void>;
+};
+
 class App {
+  store: LocalStore;
+  access: AccessController;
+  router: CommandRouter;
+  adapter: OpenCodeAdapter;
+  safety: SafetyEngine;
+  formatter: MessageFormatter;
+  executor: CommandExecutor;
+  whatsappTransport: WhatsAppTransport;
+  telegramTransport: TelegramTransport;
+  transports: Map<string, TransportLike>;
+  stopEventStream: (() => void) | null;
+  messageQueues: Map<string, Promise<unknown>>;
+
   constructor() {
-    this.store = new LocalStore(config.get('storage.dbPath'));
+    this.store = new LocalStore(String(config.get('storage.dbPath') || './data/opencode-remote.db'));
     this.access = new AccessController(this.store);
     this.router = new CommandRouter(this.access);
     this.adapter = new OpenCodeAdapter();
@@ -26,7 +67,7 @@ class App {
     this.telegramTransport = new TelegramTransport(this.handleMessage.bind(this), {
       onDeadLetter: this.handleTransportDeadLetter.bind(this),
     });
-    this.transports = new Map([
+    this.transports = new Map<string, TransportLike>([
       ['whatsapp', this.whatsappTransport],
       ['telegram', this.telegramTransport],
     ]);
@@ -37,7 +78,7 @@ class App {
   async start() {
     this.validateConfig();
     this.store.init();
-    this.store.ensureOwner(config.normalizePhone(config.get('security.ownerNumber')));
+    this.store.ensureOwner(config.normalizePhone(String(config.get('security.ownerNumber') || '')));
     this.seedOwnerTelegramIdentity();
 
     const connected = await this.adapter.start();
@@ -108,7 +149,7 @@ class App {
     }
   }
 
-  async handleMessage(event) {
+  async handleMessage(event: IncomingMessageEvent) {
     const channel = event?.channel || 'whatsapp';
     const rawFrom = event?.from || '';
     const sender = this.resolveSender(event);
@@ -253,7 +294,7 @@ class App {
     });
   }
 
-  withSenderLock(sender, task) {
+  withSenderLock(sender: string, task: () => Promise<string | null>) {
     const key = sender || 'unknown';
     const previous = this.messageQueues.get(key) || Promise.resolve();
     const current = previous.catch(() => null).then(() => task());
@@ -267,12 +308,20 @@ class App {
     return current;
   }
 
-  auditEvent(type, payload) {
+  auditEvent(type: string, payload: unknown): void {
     this.store.appendAudit(type, payload);
   }
 
-  handleTransportDeadLetter(event) {
-    this.store.appendDeadLetter(event);
+  handleTransportDeadLetter(event: DeadLetterEvent): void {
+    this.store.appendDeadLetter({
+      channel: event.channel,
+      messageId: event.messageId,
+      sender: event.sender,
+      body: event.body || '',
+      error: event.error,
+      attempts: event.attempts,
+      payload: event.payload || {},
+    });
     this.auditEvent('transport.dead_letter', {
       channel: event.channel,
       messageId: event.messageId,
@@ -282,7 +331,7 @@ class App {
     });
   }
 
-  resolveSender(event) {
+  resolveSender(event: IncomingMessageEvent): string {
     const channel = event?.channel || 'whatsapp';
     if (channel === 'telegram') {
       const userId = String(event?.userId || '').trim();
@@ -295,7 +344,7 @@ class App {
     return config.normalizePhone(event?.from || '');
   }
 
-  resolveDedupSender(event, sender) {
+  resolveDedupSender(event: IncomingMessageEvent, sender: string): string {
     const channel = event?.channel || 'whatsapp';
     if (channel === 'telegram') {
       const userId = String(event?.userId || '').trim();
@@ -307,7 +356,7 @@ class App {
     return sender || config.normalizePhone(event?.from || '') || String(event?.from || 'unknown');
   }
 
-  buildDedupKey(channel, sender, messageId) {
+  buildDedupKey(channel: string, sender: string, messageId: string): string {
     return `${channel}:${sender}:${String(messageId || '')}`;
   }
 
@@ -333,7 +382,7 @@ class App {
     }
   }
 
-  async sendChannel(channel, to, text) {
+  async sendChannel(channel: string, to: string, text: string) {
     const transport = this.transports.get(channel);
     if (!transport?.send) {
       return;
@@ -341,7 +390,7 @@ class App {
     await transport.send(to, text);
   }
 
-  async sendToAvailableChannels(phoneNumber, telegramChatId, text) {
+  async sendToAvailableChannels(phoneNumber: string, telegramChatId: string | null, text: string) {
     if (config.get('whatsapp.enabled')) {
       await this.sendChannel('whatsapp', phoneNumber, text);
     }
@@ -350,7 +399,7 @@ class App {
     }
   }
 
-  async ensureSessionWorkspace(session) {
+  async ensureSessionWorkspace(session: SessionState): Promise<void> {
     if (this.access.getWorkspaceRoot(session)) {
       return;
     }
@@ -361,11 +410,11 @@ class App {
     }
   }
 
-  isDuplicate(dedupKey) {
+  isDuplicate(dedupKey: string): boolean {
     return this.store.isMessageProcessed(dedupKey);
   }
 
-  shouldSendProgress(commandType) {
+  shouldSendProgress(commandType: string): boolean {
     const longRunning = new Set([
       'prompt',
       'run',
@@ -378,7 +427,7 @@ class App {
     return longRunning.has(commandType);
   }
 
-  shouldStoreRun(commandType) {
+  shouldStoreRun(commandType: string): boolean {
     const nonStored = new Set(['output.get', 'output.runs', 'status', 'help']);
     return !nonStored.has(commandType);
   }

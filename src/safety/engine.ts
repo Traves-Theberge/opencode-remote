@@ -9,7 +9,7 @@ const DANGEROUS_TYPES = new Set([
 ]);
 
 export class SafetyEngine {
-  evaluate(intent) {
+  evaluate(intent: { type?: string; command?: string } | null | undefined) {
     if (!intent || typeof intent !== 'object') {
       return { allowed: false, reason: 'Invalid command intent' };
     }
@@ -37,7 +37,7 @@ export class SafetyEngine {
     };
   }
 
-  evaluateCommandSyntax(command) {
+  evaluateCommandSyntax(command: string) {
     const text = String(command || '').trim();
     if (!text) {
       return { allowed: false, reason: 'Command is empty' };
@@ -69,8 +69,8 @@ export class SafetyEngine {
     return { allowed: true, reason: null };
   }
 
-  matchesDeniedCommand(command) {
-    const denyList = config.get('commands.dangerousDenyList') || [];
+  matchesDeniedCommand(command: string): string | null {
+    const denyList = (config.get('commands.dangerousDenyList') as string[] | undefined) || [];
 
     for (const pattern of denyList) {
       try {

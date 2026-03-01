@@ -2,7 +2,27 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 
+interface DeadLetterRecord {
+  channel: string;
+  messageId: string | null;
+  sender: string | null;
+  body: string | null;
+  error: string;
+  attempts: number;
+  payload: unknown;
+}
+
+interface MessageDedupRecord {
+  dedupKey: string;
+  channel: string;
+  sender: string;
+  transportMessageId: string;
+}
+
 export class LocalStore {
+  dbPath: string;
+  db: Database.Database | null;
+
   constructor(dbPath = './data/opencode-remote.db') {
     this.dbPath = dbPath;
     this.db = null;
@@ -414,12 +434,12 @@ export class LocalStore {
       .all(phone, limit);
   }
 
-  isMessageProcessed(dedupKey) {
+  isMessageProcessed(dedupKey: string): boolean {
     const row = this.db.prepare('SELECT 1 FROM messages WHERE dedup_key = ?').get(dedupKey);
     return Boolean(row);
   }
 
-  markMessageProcessed({ dedupKey, channel, sender, transportMessageId }) {
+  markMessageProcessed({ dedupKey, channel, sender, transportMessageId }: MessageDedupRecord): void {
     const now = Date.now();
     this.db
       .prepare(
@@ -439,13 +459,13 @@ export class LocalStore {
       .run(now - 5 * 60 * 1000);
   }
 
-  appendAudit(eventType, payload) {
+  appendAudit(eventType: string, payload: unknown): void {
     this.db
       .prepare('INSERT INTO audit (event_type, payload_json, created_at) VALUES (?, ?, ?)')
       .run(eventType, JSON.stringify(payload || {}), Date.now());
   }
 
-  appendDeadLetter({ channel, messageId, sender, body, error, attempts, payload }) {
+  appendDeadLetter({ channel, messageId, sender, body, error, attempts, payload }: DeadLetterRecord): void {
     this.db
       .prepare(
         `

@@ -8,22 +8,22 @@
 
 ## Request Lifecycle
 
-1. Message arrives through transport (`src/transport/whatsapp.js` or `src/transport/telegram.js`).
-2. `src/index.js` normalizes sender and applies idempotency check (`messages` table).
-3. `src/access/controller.js` checks allowlist and user role from SQLite.
-4. `src/router/index.js` maps `@oc` content:
+1. Message arrives through transport (`src/transport/whatsapp.ts` or `src/transport/telegram.ts`).
+2. `src/index.ts` normalizes sender and applies idempotency check (`messages` table).
+3. `src/access/controller.ts` checks allowlist and user role from SQLite.
+4. `src/router/index.ts` maps `@oc` content:
    - plain text -> OpenCode prompt pass-through
    - slash command -> control intent
-5. `src/safety/engine.js` blocks denied command patterns.
-6. `src/commands/executor.js` calls `src/adapter/opencode.js` with session/cwd context.
-7. Result is formatted by `src/presentation/formatter.js` and optionally assigned a run ID.
+5. `src/safety/engine.ts` blocks denied command patterns.
+6. `src/commands/executor.ts` calls `src/adapter/opencode.ts` with session/cwd context.
+7. Result is formatted by `src/presentation/formatter.ts` and optionally assigned a run ID.
 8. Run metadata is persisted to SQLite (`runs` table).
 9. Response is chunked and sent back through the originating transport.
 
 ## Event Lifecycle
 
-- `src/adapter/opencode.js` subscribes to OpenCode global event SSE.
-- `src/index.js` handles events like `permission.updated`.
+- `src/adapter/opencode.ts` subscribes to OpenCode global event SSE.
+- `src/index.ts` handles events like `permission.updated`.
 - Permission requests are mapped to active session ownership by `bindings.active_session_id`.
 - Permission prompts are sent to all available bound channels for the target user.
 
