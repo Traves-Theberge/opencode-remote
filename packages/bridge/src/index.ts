@@ -85,6 +85,19 @@ export interface TaskDefinition {
   args?: string[];
 }
 
+function isValidE164(value: string): boolean {
+  return /^\+[1-9]\d{7,14}$/.test(String(value || '').trim());
+}
+
+function isValidHttpsUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function normalizeStage(eventType: string): string {
   if (eventType === 'message.incoming') {
     return 'incoming';
@@ -133,7 +146,7 @@ export function buildFlowInsights(rows: AuditRow[], latestLimit = 18): FlowInsig
     }
     previousStage = stage;
 
-    let summary = '';
+    let summary: string;
     try {
       const payload = JSON.parse(row.payload_json) as { sender?: string; command?: string; reason?: string };
       summary = [payload.sender, payload.command, payload.reason].filter(Boolean).join(' | ');
@@ -171,7 +184,7 @@ export class OpsBridge {
     const webhookEnabled = Boolean(this.store.get('telegram.webhookEnabled'));
 
     let telegramMode: RuntimeConfig['telegramMode'] = 'disabled';
-    if (Boolean(this.store.get('telegram.enabled'))) {
+    if (this.store.get('telegram.enabled')) {
       telegramMode = webhookEnabled ? 'webhook' : pollingEnabled ? 'polling' : 'disabled';
     }
 
@@ -184,25 +197,51 @@ export class OpsBridge {
     };
   }
 
-  applySetup(values: {
+  applySetup(
+    values: {
     ownerNumber: string;
     telegramEnabled: boolean;
     telegramBotToken: string;
     telegramMode: 'polling' | 'webhook';
     telegramWebhookUrl?: string;
     telegramWebhookSecret?: string;
-  }): void {
-    this.store.set('security.ownerNumber', values.ownerNumber);
+    },
+    options: { dryRun?: boolean } = {},
+  ): void {
+    const ownerNumber = values.ownerNumber.trim();
+    if (!isValidE164(ownerNumber)) {
+      throw new Error('Owner number must be a valid E.164 value (example: +15551234567).');
+    }
+
+    if (values.telegramEnabled) {
+      const token = values.telegramBotToken.trim();
+      if (!token) {
+        throw new Error('Telegram bot token is required when Telegram is enabled.');
+      }
+
+      if (values.telegramMode === 'webhook') {
+        const webhookUrl = String(values.telegramWebhookUrl || '').trim();
+        if (!isValidHttpsUrl(webhookUrl)) {
+          throw new Error('Webhook mode requires a valid HTTPS webhook URL.');
+        }
+      }
+    }
+
+    if (options.dryRun) {
+      return;
+    }
+
+    this.store.set('security.ownerNumber', ownerNumber);
     this.store.set('telegram.enabled', values.telegramEnabled);
-    this.store.set('telegram.botToken', values.telegramBotToken);
+    this.store.set('telegram.botToken', String(values.telegramBotToken || '').trim());
 
     const isWebhook = values.telegramMode === 'webhook';
     this.store.set('telegram.webhookEnabled', isWebhook);
     this.store.set('telegram.pollingEnabled', !isWebhook);
 
     if (isWebhook) {
-      this.store.set('telegram.webhookUrl', values.telegramWebhookUrl || '');
-      this.store.set('telegram.webhookSecret', values.telegramWebhookSecret || '');
+      this.store.set('telegram.webhookUrl', String(values.telegramWebhookUrl || '').trim());
+      this.store.set('telegram.webhookSecret', String(values.telegramWebhookSecret || '').trim());
     }
   }
 

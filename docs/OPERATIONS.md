@@ -130,11 +130,21 @@ Message dedupe uses inbound transport message/update IDs in SQLite `messages` ta
 - Recommended: enable exactly one of:
   - `telegram.webhookEnabled=true` (prod)
   - `telegram.pollingEnabled=true` (dev)
+- Webhook payload guard: oversized payloads are rejected (HTTP 413) using `telegram.webhookMaxBodyBytes`.
 
 ### Telegram group chat policy
 
 - Group chats are blocked by default (`telegram.allowGroupChats=false`).
 - To permit group/supergroup control, explicitly set `telegram.allowGroupChats=true`.
+
+### Advanced command policy
+
+- Mutating advanced control-plane commands are owner-only:
+  - `@oc /model set ...`
+  - `@oc /mcp add ...`
+  - `@oc /mcp connect ...`
+  - `@oc /mcp disconnect ...`
+- These commands also remain confirmation-gated by safety tier.
 
 ### No permission prompt notifications
 

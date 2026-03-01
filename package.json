@@ -11,13 +11,15 @@
   ],
   "scripts": {
     "build": "npm run typecheck",
-    "lint": "eslint --no-error-on-unmatched-pattern \"src/**/*.js\" \"tests/**/*.js\"",
+    "lint": "eslint --no-error-on-unmatched-pattern \"src/**/*.ts\" \"tests/**/*.ts\" \"apps/**/*.ts\" \"packages/**/*.ts\"",
     "start": "npm --workspace @opencode-remote/daemon run start",
     "dev": "npm --workspace @opencode-remote/daemon run dev",
     "cli": "npm --workspace @opencode-remote/cli run start --",
     "tui": "npm --workspace @opencode-remote/tui run start",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:workspaces": "npm --workspace @opencode-remote/daemon run typecheck && npm --workspace @opencode-remote/cli run typecheck && npm --workspace @opencode-remote/bridge run typecheck",
     "test": "tsx --test tests/*.test.ts",
+    "test:workspaces": "npm --workspace @opencode-remote/cli run start -- help",
     "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
@@ -37,6 +39,7 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.0.2",
     "globals": "^17.4.0",
+    "typescript-eslint": "^8.46.1",
     "tsx": "^4.20.5",
     "typescript": "^5.8.2"
   }

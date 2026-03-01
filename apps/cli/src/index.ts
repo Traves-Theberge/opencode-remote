@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
-import { OpsBridge } from '../../../packages/bridge/src/index.js';
+import { OpsBridge } from '@opencode-remote/bridge';
 
 const bridge = new OpsBridge();
 
@@ -10,7 +10,7 @@ async function main(): Promise<void> {
 
   switch (command) {
     case 'setup':
-      await runSetupWizard();
+      await runSetupWizard(args);
       return;
     case 'status':
       runStatus();
@@ -33,7 +33,8 @@ async function main(): Promise<void> {
   }
 }
 
-async function runSetupWizard(): Promise<void> {
+async function runSetupWizard(args: string[]): Promise<void> {
+  const dryRun = args.includes('--dry-run');
   const rl = readline.createInterface({ input, output });
   try {
     const ownerNumber = (await rl.question('Owner phone number (E.164, e.g. +15551234567): ')).trim();
@@ -71,11 +72,11 @@ async function runSetupWizard(): Promise<void> {
       telegramMode,
       telegramWebhookUrl,
       telegramWebhookSecret,
-    });
+    }, { dryRun });
 
-    output.write('\nSetup saved.\n');
+    output.write(`\nSetup ${dryRun ? 'validated (dry-run)' : 'saved'}.\n`);
     output.write(`DB path: ${bridge.resolveDbPath()}\n`);
-    output.write('Next: npm start\n');
+    output.write(dryRun ? 'Next: run setup without --dry-run to persist values.\n' : 'Next: npm start\n');
   } finally {
     rl.close();
   }
@@ -154,6 +155,7 @@ OpenCode Remote CLI
 
 Commands:
   setup                         Run onboarding wizard
+  setup --dry-run               Validate onboarding values without saving
   status                        Show runtime and db status
   logs [limit]                  Show recent audit rows
   flow [limit]                  Show message flow stages/transitions

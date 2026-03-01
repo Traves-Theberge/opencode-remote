@@ -1,5 +1,5 @@
 import { createCliRenderer, TextRenderable, type KeyEvent } from '@opentui/core';
-import { OpsBridge, type TaskDefinition, type TaskId } from '../../../packages/bridge/src/index.js';
+import { OpsBridge, type TaskDefinition, type TaskId } from '@opencode-remote/bridge';
 
 const bridge = new OpsBridge();
 const renderer = await createCliRenderer({ exitOnCtrlC: true });
@@ -49,7 +49,9 @@ function renderDashboard(): string {
     .slice(0, 4)
     .map(([key, count]) => `${key.padEnd(26)} ${count}`);
   const timelinePageSize = 8;
-  const timelineStart = timelinePage * timelinePageSize;
+  const maxTimelinePages = Math.max(1, Math.ceil(flow.latest.length / timelinePageSize));
+  const safeTimelinePage = Math.min(Math.max(0, timelinePage), maxTimelinePages - 1);
+  const timelineStart = safeTimelinePage * timelinePageSize;
   const timelineWindow = flow.latest.slice(timelineStart, timelineStart + timelinePageSize);
   const timelineLines = timelineWindow.map((item) => {
     const ts = new Date(item.at).toISOString().slice(11, 19);
@@ -63,7 +65,9 @@ function renderDashboard(): string {
   });
 
   const outputPageSize = 10;
-  const outputStart = outputPage * outputPageSize;
+  const maxOutputPages = Math.max(1, Math.ceil(Math.max(1, outputLines.length) / outputPageSize));
+  const safeOutputPage = Math.min(Math.max(0, outputPage), maxOutputPages - 1);
+  const outputStart = safeOutputPage * outputPageSize;
   const outputPreview = outputLines.length
     ? outputLines.slice(outputStart, outputStart + outputPageSize)
     : ['(no task output yet)'];
@@ -97,7 +101,7 @@ function renderDashboard(): string {
     'Top Transitions',
     ...(transitionLines.length ? transitionLines : ['No transitions yet.']),
     '',
-    `Latest Timeline (page ${timelinePage + 1})`,
+    `Latest Timeline (page ${safeTimelinePage + 1}/${maxTimelinePages})`,
     ...(timelineLines.length ? timelineLines : ['No recent events found.']),
   ];
 
@@ -110,7 +114,7 @@ function renderDashboard(): string {
   ];
 
   const outputPane = [
-    `Task Output (page ${outputPage + 1})`,
+    `Task Output (page ${safeOutputPage + 1}/${maxOutputPages})`,
     ...outputPreview,
   ];
 

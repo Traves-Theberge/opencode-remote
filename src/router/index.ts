@@ -172,10 +172,10 @@ export class CommandRouter {
       case 'session':
         return this.parseSession(rest);
       case 'diff':
-        return this.toParsed('diff', [rest[0]].filter(Boolean));
+        return this.toParsed('diff', rest[0] ? [rest[0]] : []);
       case 'summarize':
       case 'summary':
-        return this.toParsed('summarize', [rest[0]].filter(Boolean));
+        return this.toParsed('summarize', rest[0] ? [rest[0]] : []);
       default:
         return this.toParsed('prompt', [line]);
     }
@@ -316,9 +316,13 @@ export class CommandRouter {
   }
 
   toParsed(command: string, args: string[]): ParsedCommand {
+    const tier =
+      command in COMMAND_TIERS
+        ? COMMAND_TIERS[command as keyof typeof COMMAND_TIERS]
+        : 'safe';
     return {
       command,
-      tier: COMMAND_TIERS[command] || 'safe',
+      tier,
       args,
       raw: [command, ...args].join(' '),
     };
@@ -326,10 +330,11 @@ export class CommandRouter {
 
   stripAlias(text: string): string {
     const parts = text.split(/\s+/);
-    if (parts[0].toLowerCase() !== '@oc') {
+    const alias = parts[0];
+    if (!alias || alias.toLowerCase() !== '@oc') {
       return '';
     }
-    return text.slice(parts[0].length).trim();
+    return text.slice(alias.length).trim();
   }
 
   async route(parsed: ParsedCommand, session: SessionState, context: RouteContext) {
@@ -349,7 +354,7 @@ export class CommandRouter {
       return this.formatError(`Unknown command: ${command}`);
     }
 
-    return handler(args, session, context);
+    return handler(args, session);
   }
 
   getHandler(command: string) {
@@ -402,7 +407,7 @@ export class CommandRouter {
       unlock: this.handleUnlock.bind(this),
     };
 
-    return handlers[command];
+    return handlers[command as keyof typeof handlers];
   }
 
   async handleStatus() {
@@ -510,7 +515,10 @@ export class CommandRouter {
     return { type: 'model.list' };
   }
 
-  async handleModelSet(args: string[]) {
+  async handleModelSet(args: string[], session: SessionState): Promise<{ type: string; providerId: string; modelId: string } | string> {
+    if (!this.accessController.isOwner(session.phoneNumber)) {
+      return '❌ Only the owner can change the active model';
+    }
     return { type: 'model.set', providerId: args[0] || '', modelId: args[1] || '' };
   }
 
@@ -526,15 +534,24 @@ export class CommandRouter {
     return { type: 'mcp.status' };
   }
 
-  async handleMcpAdd(args: string[]) {
+  async handleMcpAdd(args: string[], session: SessionState) {
+    if (!this.accessController.isOwner(session.phoneNumber)) {
+      return '❌ Only the owner can add MCP servers';
+    }
     return { type: 'mcp.add', name: args[0] || '', command: args[1] || '' };
   }
 
-  async handleMcpConnect(args: string[]) {
+  async handleMcpConnect(args: string[], session: SessionState) {
+    if (!this.accessController.isOwner(session.phoneNumber)) {
+      return '❌ Only the owner can connect MCP servers';
+    }
     return { type: 'mcp.connect', server: args[0] || '' };
   }
 
-  async handleMcpDisconnect(args: string[]) {
+  async handleMcpDisconnect(args: string[], session: SessionState) {
+    if (!this.accessController.isOwner(session.phoneNumber)) {
+      return '❌ Only the owner can disconnect MCP servers';
+    }
     return { type: 'mcp.disconnect', server: args[0] || '' };
   }
 
@@ -558,7 +575,7 @@ export class CommandRouter {
     return { type: 'opencode.diagnostics' };
   }
 
-  async handleConfirm(args: string[], session: SessionState) {
+  async handleConfirm(args: string[], session: SessionState): Promise<unknown> {
     const confirmId = String(args[0] || '').toUpperCase();
     const result = this.accessController.verifyConfirm(confirmId, session);
 
@@ -566,7 +583,12 @@ export class CommandRouter {
       return `❌ ${result.error}`;
     }
 
-    const { type, args: actionArgs, context } = result.action;
+    const action = result.action;
+    if (!action) {
+      return '❌ Confirmation action missing';
+    }
+
+    const { type, args: actionArgs } = action;
     const handler = this.getHandler(type);
     if (!handler) {
       return this.formatError(`Unknown command: ${type}`);
@@ -574,7 +596,7 @@ export class CommandRouter {
 
     session.confirmed = true;
     try {
-      return await handler(actionArgs, session, context);
+      return await handler(actionArgs, session);
     } finally {
       session.confirmed = false;
     }
@@ -634,7 +656,8 @@ export class CommandRouter {
       this.accessController.bindTelegramUser(phone, telegramUserId, username || null, session.phoneNumber);
       return `✅ Bound Telegram user ${telegramUserId} to ${phone}`;
     } catch (error) {
-      return `❌ ${error?.message || 'Failed to bind Telegram user'}`;
+      const message = error instanceof Error ? error.message : 'Failed to bind Telegram user';
+      return `❌ ${message}`;
     }
   }
 

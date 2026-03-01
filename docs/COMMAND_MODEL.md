@@ -43,9 +43,9 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 | Session/path/status/read | `/status`, `/session list`, `/pwd`, `/ls`, `/runs` | No | No |
 | Prompt | `@oc <text>` | No | No |
 | Execution | `/run`, `/shell`, `/abort`, `/session abort` | No | Yes |
-| Model | `/model status`, `/model list`, `/model set` | No | `set` only |
+| Model | `/model status`, `/model list`, `/model set` | `set` only | `set` only |
 | Tools | `/tools ids`, `/tools list` | No | No |
-| MCP | `/mcp status`, `/mcp add`, `/mcp connect`, `/mcp disconnect` | No | add/connect/disconnect |
+| MCP | `/mcp status`, `/mcp add`, `/mcp connect`, `/mcp disconnect` | add/connect/disconnect | add/connect/disconnect |
 | Skills | `/skills list` | No | No |
 | OpenCode diagnostics | `/opencode status`, `/opencode providers`, `/opencode commands`, `/opencode diagnostics` | No | No |
 

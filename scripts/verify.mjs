@@ -3,7 +3,9 @@ import { spawnSync } from 'node:child_process';
 const steps = [
   { name: 'Lint', command: 'npm', args: ['run', 'lint'] },
   { name: 'Typecheck', command: 'npm', args: ['run', 'typecheck'] },
+  { name: 'Workspace Typecheck', command: 'npm', args: ['run', 'typecheck:workspaces'] },
   { name: 'Test', command: 'npm', args: ['run', 'test'] },
+  { name: 'Workspace Smoke', command: 'npm', args: ['run', 'test:workspaces'] },
 ];
 
 const started = Date.now();

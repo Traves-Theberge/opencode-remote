@@ -26,6 +26,7 @@ const defaults = {
     webhookHost: '0.0.0.0',
     webhookPort: 4097,
     webhookPath: '/telegram/webhook',
+    webhookMaxBodyBytes: 1_000_000,
   },
   opencode: {
     serverUrl: 'http://localhost:4096',
@@ -82,12 +83,11 @@ class Config {
       this.normalizePhone(number),
     );
     const all = new Set([owner, ...allowed]);
-    all.delete(undefined);
     all.delete('');
     return Array.from(all);
   }
 
-  normalizePhone(number) {
+  normalizePhone(number: unknown): string {
     if (!number || typeof number !== 'string') {
       return '';
     }
@@ -104,12 +104,12 @@ class Config {
     return stripped ? `+${stripped}` : '';
   }
 
-  isValidPhone(number) {
+  isValidPhone(number: unknown): boolean {
     const normalized = this.normalizePhone(number);
     return /^\+[1-9]\d{7,14}$/.test(normalized);
   }
 
-  addAllowedNumber(number) {
+  addAllowedNumber(number: unknown): void {
     const normalized = this.normalizePhone(number);
     const allowed = ((this.get('security.allowedNumbers') as string[] | undefined) || []).map((entry) =>
       this.normalizePhone(entry),
@@ -121,7 +121,7 @@ class Config {
     }
   }
 
-  removeAllowedNumber(number) {
+  removeAllowedNumber(number: unknown): void {
     const normalized = this.normalizePhone(number);
     const allowed = ((this.get('security.allowedNumbers') as string[] | undefined) || []).map((entry) =>
       this.normalizePhone(entry),
@@ -130,11 +130,11 @@ class Config {
     this.set('security.allowedNumbers', filtered);
   }
 
-  isAllowed(number) {
+  isAllowed(number: unknown): boolean {
     return this.getAllowedNumbers().includes(this.normalizePhone(number));
   }
 
-  isOwner(number) {
+  isOwner(number: unknown): boolean {
     return (
       this.normalizePhone(this.get('security.ownerNumber')) ===
       this.normalizePhone(number)

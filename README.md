@@ -115,6 +115,12 @@ CLI wizard:
 npm run cli -- setup
 ```
 
+Validate without persisting:
+
+```bash
+npm run cli -- setup --dry-run
+```
+
 TUI manager:
 
 ```bash
@@ -222,6 +228,8 @@ Persistence safety:
 - `npm run lint`
 - `npm run typecheck`
 - `npm test`
+- `npm run typecheck:workspaces`
+- `npm run test:workspaces`
 - `npm run verify`
 
 Recommended pre-release gate:
@@ -229,6 +237,14 @@ Recommended pre-release gate:
 ```bash
 npm run verify
 ```
+
+`verify` now includes:
+
+- TypeScript lint on `src/`, `tests/`, `apps/`, and `packages/`
+- root typecheck
+- workspace typecheck
+- full tests
+- workspace smoke command
 
 ## Documentation
 

@@ -138,6 +138,7 @@ export class TelegramTransport {
     const host = String(config.get('telegram.webhookHost') || '0.0.0.0');
     const port = Number(config.get('telegram.webhookPort')) || 4097;
     const path = String(config.get('telegram.webhookPath') || '/telegram/webhook');
+    const maxBodyBytes = Number(config.get('telegram.webhookMaxBodyBytes')) || 1_000_000;
 
     await this.api('setWebhook', {
       url: webhookUrl,
@@ -161,8 +162,16 @@ export class TelegramTransport {
       }
 
       const chunks = [];
+      let total = 0;
       for await (const chunk of req) {
-        chunks.push(chunk);
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        total += buf.length;
+        if (total > maxBodyBytes) {
+          res.statusCode = 413;
+          res.end('payload too large');
+          return;
+        }
+        chunks.push(buf);
       }
 
       try {
@@ -356,7 +365,7 @@ export class TelegramTransport {
   }
 
   callbackToCommand(data: string): string | null {
-    const mapped = {
+    const mapped: Record<string, string> = {
       'oc:status': '@oc /status',
       'oc:session_list': '@oc /session list',
       'oc:diff': '@oc /diff',
@@ -493,8 +502,9 @@ export class TelegramTransport {
     }
 
     if (this.webhookServer) {
+      const server = this.webhookServer;
       await new Promise((resolve) => {
-        this.webhookServer.close(resolve);
+        server.close(resolve);
       });
       this.webhookServer = null;
     }

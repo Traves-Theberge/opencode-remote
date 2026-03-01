@@ -6,6 +6,14 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- Quality hardening follow-up plan: `docs/plans/2026-03-01-quality-hardening-followup-plan.md`.
+- Executor and adapter contract-style tests for advanced control-plane namespaces:
+  - `tests/executor.test.ts`
+  - `tests/adapter.test.ts`
+- Onboarding validation tests:
+  - `tests/onboarding.test.ts`
+- TUI smoke coverage:
+  - `tests/tui-smoke.test.ts`
 - Workspace daemon app (`apps/daemon`) and root runtime wiring.
 - Phase 2 control-plane parity command namespaces:
   - `model`: status/list/set
@@ -86,6 +94,18 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Lint pipeline now targets TypeScript across root and workspace code:
+  - `src/**/*.ts`, `tests/**/*.ts`, `apps/**/*.ts`, `packages/**/*.ts`
+- Verify pipeline expanded with:
+  - workspace typecheck step
+  - workspace smoke step
+- CLI onboarding now supports `setup --dry-run` and validates:
+  - owner phone (E.164)
+  - webhook URL format (HTTPS)
+  - Telegram token presence when enabled
+- Telegram webhook handling now rejects oversized payloads using configurable byte limit.
+- CLI and TUI now import bridge via workspace package name (`@opencode-remote/bridge`) instead of relative source path.
+- Advanced mutating control-plane commands are now owner-only in routing policy (`model set`, `mcp add/connect/disconnect`).
 - Dependency refresh to latest stable major/minor targets for core runtime/dev stack (including `better-sqlite3`, `conf`, `pino`, `uuid`, `eslint`, and `globals`).
 - Root start/dev scripts now run daemon via workspace app (`@opencode-remote/daemon`).
 - `.gitignore` strengthened for local DB artifacts (`*.db`, `*.sqlite*`, WAL/SHM).

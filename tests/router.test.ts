@@ -4,6 +4,7 @@ import { CommandRouter } from '../src/router/index.js';
 
 class AccessControllerStub {
   sessions = new Map();
+  owner = true;
 
   createConfirm() {
     return 'CONFIRM01';
@@ -18,7 +19,7 @@ class AccessControllerStub {
   }
 
   isOwner() {
-    return true;
+    return this.owner;
   }
 
   addAllowedNumber() {}
@@ -216,4 +217,34 @@ test('routes skills and opencode diagnostic commands', async () => {
 
   const diagnostics = await router.parse('@oc /opencode diagnostics');
   assert.equal(diagnostics.command, 'opencode diagnostics');
+});
+
+test('blocks non-owner for mutating advanced commands', async () => {
+  const access = new AccessControllerStub();
+  access.owner = false;
+  const router = new CommandRouter(access);
+
+  const parsed = await router.parse('@oc /model set anthropic claude-3-5-sonnet');
+  assert.ok(parsed);
+
+  const response = await router.route(
+    parsed,
+    {
+      id: 's1',
+      phoneNumber: '+15550001111',
+      role: 'user',
+      createdAt: Date.now(),
+      lastActivity: Date.now(),
+      locked: false,
+      activeSessionId: null,
+      cwd: '.',
+      workspaceRoot: '.',
+      busy: false,
+      confirmed: true,
+    },
+    { sender: '+15550001111', role: 'user' },
+  );
+
+  assert.equal(typeof response, 'string');
+  assert.equal(String(response).includes('Only the owner'), true);
 });
