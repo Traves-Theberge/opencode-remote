@@ -1,7 +1,7 @@
 # Implementation Plan: Quality Hardening Follow-up (CLI/TUI/Daemon)
 
 Created: 2026-03-01
-Status: In Progress
+Status: Complete
 Owner: Traves + OpenCode Agent
 
 ## Purpose
@@ -63,15 +63,15 @@ Goal: align implementation with strict TS quality standard.
 
 Tasks:
 
-- [ ] Enable strict compiler options in root `tsconfig.json`:
+- [x] Enable strict compiler options in root `tsconfig.json`:
   - `strict: true`
   - `noImplicitAny: true`
   - `noUncheckedIndexedAccess: true`
   - `noFallthroughCasesInSwitch: true`
-- [ ] Fix resulting type errors in daemon core modules (`src/`).
-- [ ] Minimize/contain unsafe casts in adapter boundary.
-- [ ] Add temporary, explicit typed wrappers where SDK typing is loose.
-- [ ] Re-run full verify and workspace typechecks.
+- [x] Fix resulting type errors in daemon core modules (`src/`).
+- [x] Minimize/contain unsafe casts in adapter boundary.
+- [x] Add temporary, explicit typed wrappers where SDK typing is loose.
+- [x] Re-run full verify and workspace typechecks.
 
 Deliverable:
 

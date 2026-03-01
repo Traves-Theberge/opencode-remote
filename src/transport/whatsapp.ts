@@ -206,6 +206,11 @@ export class WhatsAppTransport {
     }
 
     const chatId = this.toChatId(to);
+    if (!chatId) {
+      logger.warn({ to }, 'Cannot send: invalid chat ID');
+      return;
+    }
+
     const chunks = this.chunkMessage(text, 4096);
     
     for (const chunk of chunks) {
@@ -213,9 +218,9 @@ export class WhatsAppTransport {
     }
   }
 
-  toChatId(value: string | null | undefined): string | null | undefined {
+  toChatId(value: string | null | undefined): string | null {
     if (!value) {
-      return value;
+      return null;
     }
 
     if (value.includes('@')) {
@@ -223,6 +228,10 @@ export class WhatsAppTransport {
     }
 
     const digits = value.replace(/\D/g, '');
+    if (!digits) {
+      return null;
+    }
+
     return `${digits}@c.us`;
   }
 

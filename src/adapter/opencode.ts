@@ -63,17 +63,24 @@ export class OpenCodeAdapter {
         query: this.buildQuery(context),
       });
       
-      this.currentSessionId = result.data.id;
+      const data = result.data;
+      if (!data?.id) {
+        throw new Error('Session create returned no id');
+      }
+      this.currentSessionId = data.id;
       logger.info({ sessionId: this.currentSessionId }, 'Created new session');
       
-      return result.data;
+      return data;
     } catch (error) {
       logger.error({ err: error }, 'Failed to create session');
       throw error;
     }
   }
 
-  async sendPrompt(text: string, options: AdapterContext = {}) {
+  async sendPrompt(
+    text: string,
+    options: AdapterContext = {},
+  ): Promise<{ sessionId: string; messageId: string; response: string }> {
     const sessionId = this.resolveSessionId(options);
     
     if (!sessionId) {
@@ -90,12 +97,14 @@ export class OpenCodeAdapter {
         query: this.buildQuery(options),
       });
       
-      logger.info({ sessionId, messageId: result.data.info.id }, 'Prompt sent');
+      const data = result.data;
+      const messageId = String(data?.info?.id || '');
+      logger.info({ sessionId, messageId }, 'Prompt sent');
       
       return {
         sessionId,
-        messageId: result.data.info.id,
-        response: this.formatParts(result.data.parts),
+        messageId,
+        response: this.formatParts(data?.parts || []),
       };
     } catch (error) {
       logger.error({ err: error, sessionId }, 'Failed to send prompt');
@@ -121,7 +130,7 @@ export class OpenCodeAdapter {
       });
 
       return {
-        output: this.formatPayload(result.data),
+        output: this.formatPayload(result.data || ''),
       };
     } catch (error) {
       logger.warn({ err: error }, 'session.command failed, falling back to shell');
@@ -160,13 +169,14 @@ export class OpenCodeAdapter {
       const result = await this.client.file.read({
         query: {
           path,
-          directory: context.directory,
+          directory: context.directory || undefined,
         },
       });
 
+      const data = result.data;
       return {
-        content: result.data.content,
-        type: result.data.type,
+        content: data?.content || '',
+        type: data?.type || 'text',
       };
     } catch (error) {
       logger.error({ err: error, path }, 'Failed to read file');
@@ -179,7 +189,7 @@ export class OpenCodeAdapter {
       const result = await this.client.session.list({
         query: this.buildQuery(context),
       });
-      return result.data;
+      return result.data || [];
     } catch (error) {
       logger.error({ err: error }, 'Failed to list sessions');
       throw error;
@@ -202,12 +212,16 @@ export class OpenCodeAdapter {
 
   async getDiff(sessionId: string | null, context: AdapterContext = {}) {
     try {
+      const targetSessionId = sessionId || this.resolveSessionId(context);
+      if (!targetSessionId) {
+        throw new Error('No active session');
+      }
       const result = await this.client.session.diff({
-        path: { id: sessionId || this.resolveSessionId(context) },
+        path: { id: targetSessionId },
         query: this.buildQuery(context),
       });
 
-      return result.data;
+      return result.data || [];
     } catch (error) {
       logger.error({ err: error, sessionId }, 'Failed to get diff');
       throw error;
@@ -216,9 +230,13 @@ export class OpenCodeAdapter {
 
   async summarize(sessionId: string | null, context: AdapterContext = {}) {
     try {
+      const targetSessionId = sessionId || this.resolveSessionId(context);
+      if (!targetSessionId) {
+        throw new Error('No active session');
+      }
       const summaryModel = await this.getSummaryModel();
       await this.client.session.summarize({
-        path: { id: sessionId || this.resolveSessionId(context) },
+        path: { id: targetSessionId },
         body: summaryModel,
         query: this.buildQuery(context),
       });
@@ -259,7 +277,7 @@ export class OpenCodeAdapter {
     const result = await this.client.file.list({
       query: {
         path: pathQuery,
-        directory: context.directory,
+        directory: context.directory || undefined,
       },
     });
     return result.data || [];
@@ -269,7 +287,7 @@ export class OpenCodeAdapter {
     const result = await this.client.find.files({
       query: {
         query,
-        directory: context.directory,
+        directory: context.directory || undefined,
       },
     });
     return result.data || [];
@@ -279,7 +297,7 @@ export class OpenCodeAdapter {
     const result = await this.client.find.text({
       query: {
         pattern,
-        directory: context.directory,
+        directory: context.directory || undefined,
       },
     });
     return result.data || [];

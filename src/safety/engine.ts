@@ -32,7 +32,7 @@ export class SafetyEngine {
 
     return {
       allowed: true,
-      requiresConfirmation: DANGEROUS_TYPES.has(intent.type),
+      requiresConfirmation: DANGEROUS_TYPES.has(intent.type || ''),
       reason: null,
     };
   }

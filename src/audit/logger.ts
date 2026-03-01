@@ -16,7 +16,7 @@ export class AuditLogger {
     await mkdir(dir, { recursive: true });
   }
 
-  async write(event) {
+  async write(event: Record<string, unknown>) {
     const payload = {
       ts: new Date().toISOString(),
       ...event,

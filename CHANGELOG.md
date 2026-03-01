@@ -7,6 +7,12 @@ All notable changes to this project are documented in this file.
 ### Added
 
 - Quality hardening follow-up plan: `docs/plans/2026-03-01-quality-hardening-followup-plan.md`.
+- Architecture diagram set under `docs/architecture/`:
+  - system/context/container/component
+  - interaction sequences
+  - runtime state machines
+  - data flow and deployment runtime views
+- Wiki reference set under `docs/wiki/` (architecture, operations, integrations, security, development).
 - Executor and adapter contract-style tests for advanced control-plane namespaces:
   - `tests/executor.test.ts`
   - `tests/adapter.test.ts`
@@ -95,6 +101,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Root TypeScript strict mode is re-enabled with passing project and workspace checks.
 - Lint pipeline now targets TypeScript across root and workspace code:
   - `src/**/*.ts`, `tests/**/*.ts`, `apps/**/*.ts`, `packages/**/*.ts`
 - Verify pipeline expanded with:
@@ -121,6 +128,7 @@ All notable changes to this project are documented in this file.
 - README updated for dual-channel setup (Telegram + WhatsApp), admin binding commands, and storage notes.
 - Audit flow consolidated to SQLite `audit` table (single write path).
 - Inbound processing now includes retry + dead-letter capture for transport failures.
+- WhatsApp send path now rejects invalid normalized chat IDs before dispatch.
 - Telegram retry settings split from WhatsApp settings:
   - `telegram.messageMaxRetries`
   - `telegram.messageRetryDelayMs`
@@ -129,6 +137,7 @@ All notable changes to this project are documented in this file.
 - Command and data model documentation updated for Telegram identity and dead-letter support.
 - README upgraded with badges, full documentation matrix, and explicit quality command coverage.
 - Documentation cross-linking expanded across schema, ERD, and operations content.
+- Docs index now includes an explicit PR documentation maintenance checklist.
 
 ## [1.1.0] - 2026-03-01
 

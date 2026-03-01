@@ -1,12 +1,12 @@
 export class MessageFormatter {
-  header(mode) {
+  header(mode: string): string {
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
     return `🟢 OpenCode Remote · ${mode} · ${hh}:${mm}`;
   }
 
-  formatPromptResult({ sessionId, messageId, response }) {
+  formatPromptResult({ sessionId, messageId, response }: { sessionId: string; messageId: string; response: string }) {
     const body = this.truncateText(response || '(no response)', {
       maxLines: 40,
       maxChars: 2600,
@@ -28,7 +28,7 @@ export class MessageFormatter {
     ].join('\n');
   }
 
-  formatShellResult({ command, output, durationMs }) {
+  formatShellResult({ command, output, durationMs }: { command: string; output: string; durationMs: number }) {
     const body = this.truncateText(output || '(no output)', {
       maxLines: 36,
       maxChars: 2200,
@@ -51,7 +51,7 @@ export class MessageFormatter {
     ].join('\n');
   }
 
-  formatFileReadResult({ path, content }) {
+  formatFileReadResult({ path, content }: { path: string; content: string }) {
     const body = this.truncateText(content || '(empty file)', {
       maxLines: 45,
       maxChars: 2800,
@@ -65,7 +65,7 @@ export class MessageFormatter {
     ].join('\n');
   }
 
-  formatSessionList(sessions) {
+  formatSessionList(sessions: Array<{ id?: string; title?: string; status?: string }> | null | undefined) {
     if (!Array.isArray(sessions) || sessions.length === 0) {
       return [this.header('Sessions'), '', '📚 No sessions found.'].join('\n');
     }
@@ -86,7 +86,7 @@ export class MessageFormatter {
     ].join('\n');
   }
 
-  formatSessionStatus(status, sessionId) {
+  formatSessionStatus(status: { state?: string; status?: string; mode?: string; running?: boolean; id?: string } | null | undefined, sessionId: string | null | undefined) {
     if (!status) {
       return [this.header('Session Status'), '', 'ℹ️ No session status available.'].join('\n');
     }
@@ -105,7 +105,7 @@ export class MessageFormatter {
     ].join('\n');
   }
 
-  formatFileList(items, basePath = '.') {
+  formatFileList(items: Array<{ name?: string; path?: string; type?: string; dir?: boolean }> | null | undefined, basePath = '.') {
     if (!Array.isArray(items) || items.length === 0) {
       return [this.header('List Files'), '', `📂 No files under \`${basePath}\`.`].join('\n');
     }
@@ -128,7 +128,7 @@ export class MessageFormatter {
       .join('\n');
   }
 
-  formatFindFilesResult(query, items) {
+  formatFindFilesResult(query: string, items: string[] | null | undefined) {
     if (!Array.isArray(items) || items.length === 0) {
       return [this.header('Find Files'), '', `🔍 No files matched \`${query}\`.`].join('\n');
     }
@@ -147,7 +147,13 @@ export class MessageFormatter {
       .join('\n');
   }
 
-  formatFindTextResult(pattern, matches) {
+  formatFindTextResult(
+    pattern: string,
+    matches:
+      | Array<{ path?: { text?: string }; line_number?: number; lines?: { text?: string } }>
+      | null
+      | undefined,
+  ) {
     if (!Array.isArray(matches) || matches.length === 0) {
       return [this.header('Find Text'), '', `🔎 No text matched \`${pattern}\`.`].join('\n');
     }
@@ -172,7 +178,7 @@ export class MessageFormatter {
       .join('\n');
   }
 
-  formatDiffResult(diff) {
+  formatDiffResult(diff: Array<{ path?: string; file?: string; additions?: number; deletions?: number }> | null | undefined) {
     if (!Array.isArray(diff) || diff.length === 0) {
       return [this.header('Diff'), '', '🧩 No diffs found.'].join('\n');
     }
@@ -196,11 +202,11 @@ export class MessageFormatter {
     ].join('\n');
   }
 
-  formatSuccess(mode, text) {
+  formatSuccess(mode: string, text: string): string {
     return [this.header(mode), '', `✅ ${text}`].join('\n');
   }
 
-  formatWithRunId(text, runId) {
+  formatWithRunId(text: string, runId: string | null): string {
     if (!runId) {
       return text;
     }
@@ -208,7 +214,7 @@ export class MessageFormatter {
     return [text, '', `🆔 Run: \`${runId}\``, 'Use `@oc /get <runId>` for full output.'].join('\n');
   }
 
-  formatRunLookup(item) {
+  formatRunLookup(item: { id: string; commandType: string; createdAt: number; raw: string } | null) {
     if (!item) {
       return [this.header('Run Lookup'), '', '❌ Run ID not found.'].join('\n');
     }
@@ -232,7 +238,7 @@ export class MessageFormatter {
     ].join('\n');
   }
 
-  formatRunList(items) {
+  formatRunList(items: Array<{ id: string; commandType: string; createdAt: number }> | null | undefined) {
     if (!items || items.length === 0) {
       return [this.header('Runs'), '', 'ℹ️ No recent runs found.'].join('\n');
     }
@@ -254,11 +260,11 @@ export class MessageFormatter {
     ].join('\n');
   }
 
-  formatWarning(mode, text) {
+  formatWarning(mode: string, text: string): string {
     return [this.header(mode), '', `⚠️ ${text}`].join('\n');
   }
 
-  formatPermissionRequest(permission) {
+  formatPermissionRequest(permission: { id?: string; title?: string; type?: string; sessionID?: string } | null | undefined) {
     const id = permission?.id || '(unknown)';
     const title = permission?.title || 'Permission request';
     const type = permission?.type || 'unknown';
@@ -279,7 +285,7 @@ export class MessageFormatter {
     ].join('\n');
   }
 
-  formatError(mode, text) {
+  formatError(mode: string, text: string): string {
     return [
       this.header(mode),
       '',
@@ -292,7 +298,7 @@ export class MessageFormatter {
     ].join('\n');
   }
 
-  truncateText(text, { maxLines = 40, maxChars = 2400 } = {}) {
+  truncateText(text: string, { maxLines = 40, maxChars = 2400 }: { maxLines?: number; maxChars?: number } = {}) {
     const normalized = String(text || '').trim();
     if (!normalized) {
       return '(no output)';

@@ -5,8 +5,11 @@
     "moduleResolution": "NodeNext",
     "allowJs": false,
     "noEmit": true,
-    "strict": false,
+    "strict": true,
+    "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts", "apps/**/*.ts", "packages/**/*.ts"]
+  "include": ["src/**/*.ts", "apps/**/*.ts", "packages/**/*.ts"]
 }

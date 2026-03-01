@@ -111,9 +111,13 @@ export class CommandExecutor {
           String(intent.title || 'WhatsApp Remote Session'),
           context,
         );
-        this.access.setActiveSessionId(session, created.id);
-        this.adapter.setCurrentSessionId(created.id);
-        return this.formatter.formatSuccess('Session', `Created new session ${created.id}`);
+        const createdId = String(created?.id || '');
+        if (!createdId) {
+          return this.formatter.formatError('Session', 'Failed to create session');
+        }
+        this.access.setActiveSessionId(session, createdId);
+        this.adapter.setCurrentSessionId(createdId);
+        return this.formatter.formatSuccess('Session', `Created new session ${createdId}`);
       }
 
       case 'session.abort': {
@@ -142,7 +146,7 @@ export class CommandExecutor {
       case 'path.cd': {
         const result = this.access.setCwd(session, String(intent.path || ''));
         if (!result.ok) {
-          return this.formatter.formatError('Path', result.error);
+          return this.formatter.formatError('Path', result.error || 'Failed to change directory');
         }
         return this.formatter.formatSuccess('Path', `Directory changed to ${result.cwd}`);
       }
@@ -205,7 +209,7 @@ export class CommandExecutor {
         this.access.setWorkspaceRoot(session, directory);
         const cwdSet = this.access.setCwd(session, '.');
         if (!cwdSet.ok) {
-          return this.formatter.formatError('Project', cwdSet.error);
+          return this.formatter.formatError('Project', cwdSet.error || 'Failed to set project directory');
         }
         return this.formatter.formatSuccess('Project', `Using project ${projectId} at ${cwdSet.cwd}`);
       }

@@ -16,12 +16,26 @@ interface IncomingMessageEvent {
   channel?: 'whatsapp' | 'telegram';
   from?: string;
   body?: string;
-  messageId?: string;
+  messageId?: string | null;
   timestamp?: number | null;
   userId?: string;
   username?: string;
   chatId?: string;
   callbackData?: string;
+}
+
+interface RoutedIntent {
+  type: string;
+  [key: string]: unknown;
+}
+
+interface GlobalEventEnvelope {
+  payload?: { type?: string; properties?: Record<string, unknown> };
+  id?: string;
+  data?: {
+    payload?: { type?: string; properties?: Record<string, unknown> };
+    id?: string;
+  };
 }
 
 interface DeadLetterEvent {
@@ -105,9 +119,10 @@ class App {
     }
   }
 
-  async handleGlobalEvent(eventEnvelope) {
-    const payload = eventEnvelope?.payload || eventEnvelope?.data?.payload;
-    const eventId = eventEnvelope?.id || eventEnvelope?.data?.id || null;
+  async handleGlobalEvent(eventEnvelope: unknown) {
+    const normalized = eventEnvelope as GlobalEventEnvelope;
+    const payload = normalized?.payload || normalized?.data?.payload;
+    const eventId = normalized?.id || normalized?.data?.id || null;
 
     if (eventId) {
       this.store.setEventOffset('global', String(eventId));
@@ -118,8 +133,10 @@ class App {
     }
 
     if (payload.type === 'permission.updated') {
-      const permission = payload.properties;
-      const session = this.access.findSessionByActiveSessionId(permission?.sessionID);
+      const permission = payload.properties || {};
+      const permissionSessionId =
+        typeof permission?.sessionID === 'string' ? permission.sessionID : '';
+      const session = this.access.findSessionByActiveSessionId(permissionSessionId);
       const owner = config.normalizePhone(config.get('security.ownerNumber'));
       const target = session?.phoneNumber || owner;
 
@@ -149,7 +166,7 @@ class App {
     }
   }
 
-  async handleMessage(event: IncomingMessageEvent) {
+  async handleMessage(event: IncomingMessageEvent): Promise<string | null> {
     const channel = event?.channel || 'whatsapp';
     const rawFrom = event?.from || '';
     const sender = this.resolveSender(event);
@@ -232,11 +249,15 @@ class App {
         return routed;
       }
 
-      const safety = this.safety.evaluate(routed);
+      const intent = routed as RoutedIntent;
+      const safety = this.safety.evaluate({
+        type: intent.type,
+        command: typeof intent.command === 'string' ? intent.command : undefined,
+      });
       if (!safety.allowed) {
         this.auditEvent('command.blocked', {
           sender,
-          command: routed.type,
+          command: intent.type,
           reason: safety.reason,
         });
         return this.formatter.formatWarning(
@@ -255,25 +276,25 @@ class App {
 
         this.access.setBusy(session, true);
 
-        if (this.shouldSendProgress(routed.type)) {
+        if (this.shouldSendProgress(intent.type)) {
           await this.sendChannel(
             channel,
             rawFrom,
             this.formatter.formatSuccess(
               'Working',
-              `Processing ${routed.type}. I will send the result shortly.`,
+              `Processing ${intent.type}. I will send the result shortly.`,
             ),
           );
         }
 
-        const output = await this.executor.execute(routed, session);
-        const runId = this.shouldStoreRun(routed.type) ? randomUUID().slice(0, 8).toUpperCase() : null;
+        const output = await this.executor.execute(intent, session);
+        const runId = this.shouldStoreRun(intent.type) ? randomUUID().slice(0, 8).toUpperCase() : null;
         if (runId) {
           this.store.saveRun({
             runId,
             phone: session.phoneNumber,
             sessionId: this.access.getActiveSessionId(session),
-            commandType: routed.type,
+            commandType: intent.type,
             display: output,
             raw: output,
           });
@@ -281,20 +302,23 @@ class App {
 
         this.auditEvent('command.executed', {
           sender,
-          command: routed.type,
+          command: intent.type,
           ok: true,
           runId,
         });
         return this.formatter.formatWithRunId(output, runId);
       } catch (error) {
-        logger.error({ err: error, sender, command: routed.type }, 'Command execution failed');
+        logger.error({ err: error, sender, command: intent.type }, 'Command execution failed');
         this.auditEvent('command.executed', {
           sender,
-          command: routed.type,
+          command: intent.type,
           ok: false,
-          error: String(error?.message || error),
+          error: String(error instanceof Error ? error.message : error),
         });
-        return this.formatter.formatError('Execute', error?.message || 'Unknown error');
+        return this.formatter.formatError(
+          'Execute',
+          error instanceof Error ? error.message : 'Unknown error',
+        );
       } finally {
         this.access.setBusy(session, false);
       }
@@ -319,7 +343,7 @@ class App {
     this.store.appendAudit(type, payload);
   }
 
-  handleTransportDeadLetter(event: DeadLetterEvent): void {
+  async handleTransportDeadLetter(event: DeadLetterEvent): Promise<void> {
     this.store.appendDeadLetter({
       channel: event.channel,
       messageId: event.messageId,

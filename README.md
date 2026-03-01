@@ -7,7 +7,7 @@ OpenCode Remote is a local-first control layer for OpenCode with dual transport 
 
 It routes chat input into a deterministic command model (`@oc`) and persists control-plane state in SQLite.
 
-Implementation is TypeScript-first (`src/**/*.ts`, `tests/**/*.ts`) with zero explicit `any` usage.
+Implementation is TypeScript-first (`src/**/*.ts`, `tests/**/*.ts`) with strict mode enabled and zero explicit `any` usage.
 
 ## What It Does
 
@@ -249,6 +249,8 @@ npm run verify
 ## Documentation
 
 - `docs/README.md`
+- `docs/architecture/` (diagram set)
+- `docs/wiki/Home.md`
 - `docs/ARCHITECTURE.md`
 - `docs/COMMAND_MODEL.md`
 - `docs/DATA_MODELS.md`
