@@ -217,6 +217,13 @@ class App {
       });
 
       if (typeof routed === 'string') {
+        if (routed.includes('Only the owner can')) {
+          this.auditEvent('command.blocked', {
+            sender,
+            command: parsed.command,
+            reason: 'owner_only_policy',
+          });
+        }
         this.auditEvent('command.responded', {
           sender,
           command: parsed.command,

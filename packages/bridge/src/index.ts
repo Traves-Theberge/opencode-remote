@@ -171,10 +171,12 @@ export function buildFlowInsights(rows: AuditRow[], latestLimit = 18): FlowInsig
 
 export class OpsBridge {
   private store: Conf<Record<string, unknown>>;
+  private dbPathOverride: string | null;
 
-  constructor() {
+  constructor(options: { projectName?: string; dbPathOverride?: string } = {}) {
+    this.dbPathOverride = options.dbPathOverride || null;
     this.store = new Conf({
-      projectName: 'opencode-remote',
+      projectName: options.projectName || 'opencode-remote',
       defaults,
     }) as unknown as Conf<Record<string, unknown>>;
   }
@@ -246,6 +248,9 @@ export class OpsBridge {
   }
 
   resolveDbPath(): string {
+    if (this.dbPathOverride) {
+      return path.resolve(this.dbPathOverride);
+    }
     return path.resolve(String(this.store.get('storage.dbPath') || './data/opencode-remote.db'));
   }
 

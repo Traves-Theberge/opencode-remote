@@ -31,6 +31,7 @@ All notable changes to this project are documented in this file.
   - flow visualizer, transition tracker, recent timeline
   - pane-based dashboard navigation (overview/flow/tasks/output)
   - timeline and output paging controls
+  - dashboard refresh action (`r`) that resets paging and reloads views
 - Installation bootstrap script: `scripts/install.sh`
 - Bridge task tests: `tests/bridge.test.ts`
 - Monorepo workspace scaffolding:
@@ -106,6 +107,7 @@ All notable changes to this project are documented in this file.
 - Telegram webhook handling now rejects oversized payloads using configurable byte limit.
 - CLI and TUI now import bridge via workspace package name (`@opencode-remote/bridge`) instead of relative source path.
 - Advanced mutating control-plane commands are now owner-only in routing policy (`model set`, `mcp add/connect/disconnect`).
+- Owner-only policy denials now emit `command.blocked` audit events with reason `owner_only_policy`.
 - Dependency refresh to latest stable major/minor targets for core runtime/dev stack (including `better-sqlite3`, `conf`, `pino`, `uuid`, `eslint`, and `globals`).
 - Root start/dev scripts now run daemon via workspace app (`@opencode-remote/daemon`).
 - `.gitignore` strengthened for local DB artifacts (`*.db`, `*.sqlite*`, WAL/SHM).

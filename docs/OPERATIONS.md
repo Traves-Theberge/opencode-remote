@@ -42,6 +42,13 @@ TUI (visual manager shell):
 npm run tui
 ```
 
+TUI quick keys:
+
+- `o` onboarding wizard
+- `r` refresh dashboard and reset paging
+- `v` vacuum
+- `p` prune dead letters (30d)
+
 Bridge package (`packages/bridge`) is the shared control-plane API used by both CLI and TUI for:
 
 - config reads/writes
@@ -145,6 +152,7 @@ Message dedupe uses inbound transport message/update IDs in SQLite `messages` ta
   - `@oc /mcp connect ...`
   - `@oc /mcp disconnect ...`
 - These commands also remain confirmation-gated by safety tier.
+- Owner-only denials are audited as `command.blocked` with reason `owner_only_policy`.
 
 ### No permission prompt notifications
 

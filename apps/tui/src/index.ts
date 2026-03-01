@@ -135,7 +135,7 @@ function renderDashboard(): string {
     ...paneContent,
     '',
     `Status: ${statusMessage}`,
-    'Keys: Left/Right pane | Up/Down task | Enter run | o onboarding | n/b timeline page | ]/[ output page | v vacuum | p prune dead_letters 30',
+    'Keys: Left/Right pane | Up/Down task | Enter run | o onboarding | r refresh | n/b timeline page | ]/[ output page | v vacuum | p prune dead_letters 30',
     'Press Ctrl+C to exit.',
   ].join('\n');
 }
@@ -175,6 +175,12 @@ function executeTaskById(id: TaskId, args?: Record<string, string | number | boo
   outputLines = result.lines;
   outputPage = 0;
   statusMessage = `${result.title} completed.`;
+}
+
+function refreshDashboard(): void {
+  timelinePage = 0;
+  outputPage = 0;
+  statusMessage = 'Dashboard refreshed.';
 }
 
 function appendInputChar(key: KeyEvent): void {
@@ -307,6 +313,12 @@ renderer.keyInput.on('keypress', (key: KeyEvent) => {
     mode = 'onboarding';
     onboardingStep = 0;
     statusMessage = 'Onboarding started.';
+    render();
+    return;
+  }
+
+  if (key.name === 'r') {
+    refreshDashboard();
     render();
     return;
   }

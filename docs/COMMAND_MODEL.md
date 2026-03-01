@@ -34,6 +34,7 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 - Dangerous tiers (`run`, `shell`, `session.abort`, `abort`, `model.set`, `mcp.add`, `mcp.connect`, `mcp.disconnect`) require confirmation.
 - App returns a confirmation ID and requires `/confirm <id>`.
 - Confirmations are single-use and TTL-limited in SQLite.
+- Owner-only policy denials for mutating advanced namespaces are audited as `command.blocked` with reason `owner_only_policy`.
 
 ## Permission Policy Matrix
 

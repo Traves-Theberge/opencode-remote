@@ -5,27 +5,23 @@ import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { LocalStore } from '../src/storage/sqlite.js';
-import { config } from '../src/core/config.js';
 import { OpsBridge, buildFlowInsights } from '../packages/bridge/src/index.js';
 
 function withTempDb() {
   const dbPath = path.join(os.tmpdir(), `opencode-remote-bridge-${randomUUID()}.db`);
-  const priorDbPath = config.get('storage.dbPath');
-
-  config.set('storage.dbPath', dbPath);
   const store = new LocalStore(dbPath);
   store.init();
+  const bridge = new OpsBridge({
+    projectName: `opencode-remote-bridge-test-${randomUUID()}`,
+    dbPathOverride: dbPath,
+  });
 
   return {
     dbPath,
     store,
+    bridge,
     cleanup: () => {
       store.close();
-      if (priorDbPath === undefined) {
-        config.delete('storage.dbPath');
-      } else {
-        config.set('storage.dbPath', priorDbPath);
-      }
       rmSync(dbPath, { force: true });
     },
   };
@@ -61,13 +57,12 @@ test('builds flow insights from audit rows', () => {
 });
 
 test('executes shared flow task from bridge', () => {
-  const { store, cleanup } = withTempDb();
+  const { store, bridge, cleanup } = withTempDb();
   try {
     store.appendAudit('message.incoming', { sender: '+15550001111' });
     store.appendAudit('command.executed', { command: 'status' });
     store.appendAudit('command.blocked', { reason: 'policy' });
 
-    const bridge = new OpsBridge();
     const result = bridge.executeTask({ id: 'flow', args: { limit: 50 } });
 
     assert.equal(result.id, 'flow');
@@ -79,7 +74,8 @@ test('executes shared flow task from bridge', () => {
 });
 
 test('exposes task catalog and status task output', () => {
-  const bridge = new OpsBridge();
+  const { bridge, cleanup } = withTempDb();
+  try {
   const catalog = bridge.getTaskCatalog();
   assert.ok(catalog.some((task) => task.id === 'status'));
   assert.ok(catalog.some((task) => task.id === 'flow'));
@@ -88,4 +84,7 @@ test('exposes task catalog and status task output', () => {
   const status = bridge.executeTask({ id: 'status' });
   assert.equal(status.id, 'status');
   assert.ok(status.lines.some((line) => line.startsWith('DB:')));
+  } finally {
+    cleanup();
+  }
 });

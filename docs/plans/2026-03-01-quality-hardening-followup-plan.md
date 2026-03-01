@@ -1,7 +1,7 @@
 # Implementation Plan: Quality Hardening Follow-up (CLI/TUI/Daemon)
 
 Created: 2026-03-01
-Status: Planned
+Status: In Progress
 Owner: Traves + OpenCode Agent
 
 ## Purpose
@@ -41,15 +41,15 @@ Goal: ensure lint actually validates TypeScript code and workspace apps/packages
 
 Tasks:
 
-- [ ] Update root lint script to target TS paths:
+- [x] Update root lint script to target TS paths:
   - `src/**/*.ts`
   - `tests/**/*.ts`
   - `apps/**/*.ts`
   - `packages/**/*.ts`
-- [ ] Update `eslint.config.js` file globs to TS files.
-- [ ] Add TypeScript-aware lint baseline (parser/plugins if needed).
-- [ ] Validate `npm run verify` still passes.
-- [ ] Add docs note for lint scope in README/scripts section.
+- [x] Update `eslint.config.js` file globs to TS files.
+- [x] Add TypeScript-aware lint baseline (parser/plugins if needed).
+- [x] Validate `npm run verify` still passes.
+- [x] Add docs note for lint scope in README/scripts section.
 
 Deliverable:
 
@@ -85,17 +85,17 @@ Goal: prove deterministic namespace behavior beyond parser coverage.
 
 Tasks:
 
-- [ ] Add executor unit tests for each namespace intent:
+- [x] Add executor unit tests for each namespace intent:
   - `model.status`, `model.list`, `model.set`
   - `tools.ids`, `tools.list`
   - `mcp.status`, `mcp.add`, `mcp.connect`, `mcp.disconnect`
   - `skills.list`
   - `opencode.status/providers/commands/diagnostics`
-- [ ] Add adapter contract tests with SDK call stubs/mocks:
+- [x] Add adapter contract tests with SDK call stubs/mocks:
   - validate request shape and response mapping
   - validate error handling and user-facing messages
-- [ ] Add negative tests for missing args and policy violations.
-- [ ] Add regression tests to ensure legacy commands still behave unchanged.
+- [x] Add negative tests for missing args and policy violations.
+- [x] Add regression tests to ensure legacy commands still behave unchanged.
 
 Deliverable:
 
@@ -109,11 +109,11 @@ Goal: remove brittle relative imports from CLI/TUI to bridge sources.
 
 Tasks:
 
-- [ ] Replace direct source imports in CLI/TUI with workspace package import:
+- [x] Replace direct source imports in CLI/TUI with workspace package import:
   - `@opencode-remote/bridge`
-- [ ] Ensure package exports are correct for runtime + typecheck.
-- [ ] Verify scripts work from root and workspace context.
-- [ ] Add smoke tests for:
+- [x] Ensure package exports are correct for runtime + typecheck.
+- [x] Verify scripts work from root and workspace context.
+- [x] Add smoke tests for:
   - `npm run cli -- status`
   - `npm run tui`
 
@@ -129,11 +129,11 @@ Goal: make operator UX resilient and predictable under long outputs.
 
 Tasks:
 
-- [ ] Add bounded page navigation for timeline/output.
-- [ ] Show current page + max page indicators.
-- [ ] Add explicit empty/end-of-range messages.
-- [ ] Add quick key legend section and context-sensitive hints.
-- [ ] Add a refresh key action to reload stats/flow cleanly.
+- [x] Add bounded page navigation for timeline/output.
+- [x] Show current page + max page indicators.
+- [x] Add explicit empty/end-of-range messages.
+- [x] Add quick key legend section and context-sensitive hints.
+- [x] Add a refresh key action to reload stats/flow cleanly.
 
 Deliverable:
 
@@ -147,11 +147,11 @@ Goal: prevent invalid setup persistence.
 
 Tasks:
 
-- [ ] Validate owner number using E.164 before save.
-- [ ] Validate webhook URL format when webhook mode selected.
-- [ ] Require token when Telegram enabled.
-- [ ] Add `--dry-run` setup mode for preview without write.
-- [ ] Add corresponding CLI tests for validation paths.
+- [x] Validate owner number using E.164 before save.
+- [x] Validate webhook URL format when webhook mode selected.
+- [x] Require token when Telegram enabled.
+- [x] Add `--dry-run` setup mode for preview without write.
+- [x] Add corresponding CLI tests for validation paths.
 
 Deliverable:
 
@@ -165,10 +165,10 @@ Goal: align runtime behavior with documented safety/permission matrix.
 
 Tasks:
 
-- [ ] Define owner-only command set for high-risk admin/mutating namespaces.
-- [ ] Enforce policy in router/executor before adapter calls.
-- [ ] Add audit events for policy denials with clear reason.
-- [ ] Add tests for owner vs non-owner command attempts.
+- [x] Define owner-only command set for high-risk admin/mutating namespaces.
+- [x] Enforce policy in router/executor before adapter calls.
+- [x] Add audit events for policy denials with clear reason.
+- [x] Add tests for owner vs non-owner command attempts.
 
 Deliverable:
 
