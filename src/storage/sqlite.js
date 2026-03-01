@@ -98,6 +98,37 @@ export class LocalStore {
           );
         `,
       },
+      {
+        version: 3,
+        name: 'dead_letters',
+        sql: `
+          CREATE TABLE IF NOT EXISTS dead_letters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel TEXT NOT NULL,
+            message_id TEXT,
+            sender TEXT,
+            body TEXT,
+            error TEXT NOT NULL,
+            attempts INTEGER NOT NULL,
+            payload_json TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_dead_letters_created ON dead_letters(created_at DESC);
+          CREATE INDEX IF NOT EXISTS idx_dead_letters_sender ON dead_letters(sender, created_at DESC);
+        `,
+      },
+      {
+        version: 4,
+        name: 'telegram_identity_columns',
+        sql: `
+          ALTER TABLE users ADD COLUMN telegram_user_id TEXT;
+          ALTER TABLE users ADD COLUMN telegram_username TEXT;
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram_user_id ON users(telegram_user_id);
+
+          ALTER TABLE bindings ADD COLUMN telegram_chat_id TEXT;
+        `,
+      },
     ];
 
     const applied = new Set(
@@ -177,6 +208,70 @@ export class LocalStore {
       .map((row) => row.phone);
   }
 
+  setTelegramIdentity(phone, { userId, username }) {
+    const telegramUserId = String(userId || '').trim();
+    if (!telegramUserId) {
+      return;
+    }
+
+    this.db
+      .prepare(
+        `
+        UPDATE users
+        SET telegram_user_id = ?,
+            telegram_username = ?,
+            updated_at = ?
+        WHERE phone = ?
+      `,
+      )
+      .run(telegramUserId, username || null, Date.now(), phone);
+  }
+
+  clearTelegramIdentityByUserId(userId) {
+    const telegramUserId = String(userId || '').trim();
+    if (!telegramUserId) {
+      return;
+    }
+
+    this.db
+      .prepare(
+        `
+        UPDATE users
+        SET telegram_user_id = NULL,
+            telegram_username = NULL,
+            updated_at = ?
+        WHERE telegram_user_id = ?
+      `,
+      )
+      .run(Date.now(), telegramUserId);
+  }
+
+  getPhoneByTelegramUserId(userId) {
+    const telegramUserId = String(userId || '').trim();
+    if (!telegramUserId) {
+      return null;
+    }
+
+    const row = this.db
+      .prepare('SELECT phone FROM users WHERE active = 1 AND telegram_user_id = ? LIMIT 1')
+      .get(telegramUserId);
+
+    return row?.phone || null;
+  }
+
+  listTelegramBindings() {
+    return this.db
+      .prepare(
+        `
+        SELECT phone, telegram_user_id, telegram_username
+        FROM users
+        WHERE active = 1 AND telegram_user_id IS NOT NULL
+        ORDER BY phone ASC
+      `,
+      )
+      .all();
+  }
+
   getBinding(phone) {
     return this.db.prepare('SELECT * FROM bindings WHERE phone = ?').get(phone) || null;
   }
@@ -186,6 +281,7 @@ export class LocalStore {
       active_session_id: null,
       cwd: null,
       workspace_root: null,
+      telegram_chat_id: null,
     };
     const next = {
       active_session_id:
@@ -193,6 +289,8 @@ export class LocalStore {
       cwd: patch.cwd !== undefined ? patch.cwd : current.cwd,
       workspace_root:
         patch.workspaceRoot !== undefined ? patch.workspaceRoot : current.workspace_root,
+      telegram_chat_id:
+        patch.telegramChatId !== undefined ? patch.telegramChatId : current.telegram_chat_id,
     };
 
     const now = Date.now();
@@ -215,6 +313,12 @@ export class LocalStore {
         workspaceRoot: next.workspace_root,
         updatedAt: now,
       });
+
+    if (next.telegram_chat_id !== undefined) {
+      this.db
+        .prepare('UPDATE bindings SET telegram_chat_id = ? WHERE phone = ?')
+        .run(next.telegram_chat_id, phone);
+    }
   }
 
   findBindingBySessionId(sessionId) {
@@ -303,6 +407,34 @@ export class LocalStore {
     this.db
       .prepare('INSERT INTO audit (event_type, payload_json, created_at) VALUES (?, ?, ?)')
       .run(eventType, JSON.stringify(payload || {}), Date.now());
+  }
+
+  appendDeadLetter({ channel, messageId, sender, body, error, attempts, payload }) {
+    this.db
+      .prepare(
+        `
+        INSERT INTO dead_letters (
+          channel,
+          message_id,
+          sender,
+          body,
+          error,
+          attempts,
+          payload_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      )
+      .run(
+        channel,
+        messageId || null,
+        sender || null,
+        body || null,
+        error,
+        attempts,
+        JSON.stringify(payload || {}),
+        Date.now(),
+      );
   }
 
   getSchemaMigrations() {

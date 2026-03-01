@@ -162,6 +162,31 @@ export class AccessController {
     logger.info({ removedBy, number: normalized }, 'Number removed from allowlist');
   }
 
+  bindTelegramUser(phone, telegramUserId, telegramUsername, actor) {
+    const normalized = config.normalizePhone(phone);
+    if (!normalized || !this.store.isAllowed(normalized)) {
+      throw new Error('Target phone must exist in allowlist before binding Telegram user');
+    }
+
+    this.store.setTelegramIdentity(normalized, {
+      userId: telegramUserId,
+      username: telegramUsername,
+    });
+    logger.info(
+      { actor, phone: normalized, telegramUserId, telegramUsername },
+      'Telegram identity bound to user',
+    );
+  }
+
+  unbindTelegramUser(telegramUserId, actor) {
+    this.store.clearTelegramIdentityByUserId(telegramUserId);
+    logger.info({ actor, telegramUserId }, 'Telegram identity unbound from user');
+  }
+
+  listTelegramBindings() {
+    return this.store.listTelegramBindings();
+  }
+
   listAllowedNumbers() {
     return this.store.listAllowedNumbers();
   }
@@ -202,6 +227,34 @@ export class AccessController {
 
   cleanupExpiredConfirms() {
     this.store.cleanupConfirmations();
+  }
+
+  cleanupStaleSessions() {
+    const now = Date.now();
+    const maxAgeMs = Number(config.get('security.sessionMaxAge')) || 24 * 60 * 60 * 1000;
+    const staleTimeoutMs =
+      Number(config.get('security.sessionStaleTimeout')) || 2 * 60 * 60 * 1000;
+
+    for (const [phone, session] of this.sessions.entries()) {
+      if (session.busy) {
+        continue;
+      }
+
+      const tooOld = now - session.createdAt > maxAgeMs;
+      const tooIdle = now - session.lastActivity > staleTimeoutMs;
+      if (!tooOld && !tooIdle) {
+        continue;
+      }
+
+      this.sessions.delete(phone);
+      logger.info(
+        {
+          phoneNumber: phone,
+          reason: tooOld ? 'max-age' : 'stale-timeout',
+        },
+        'Session evicted from in-memory cache',
+      );
+    }
   }
 
   persistBinding(session) {

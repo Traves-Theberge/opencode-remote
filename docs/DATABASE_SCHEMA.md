@@ -10,6 +10,8 @@ Migrations are tracked in `schema_migrations` and applied sequentially at startu
 
 - v1: initial schema
 - v2: event offsets
+- v3: dead letters
+- v4: telegram identity columns
 
 ## Tables
 
@@ -28,6 +30,8 @@ Migrations are tracked in `schema_migrations` and applied sequentially at startu
 | phone | TEXT PK | E.164 normalized |
 | role | TEXT | `owner` or `user` |
 | active | INTEGER | 1/0 allowlist state |
+| telegram_user_id | TEXT NULL | Telegram user ID mapping (unique) |
+| telegram_username | TEXT NULL | Telegram username label |
 | created_at | INTEGER | Epoch ms |
 | updated_at | INTEGER | Epoch ms |
 
@@ -39,6 +43,7 @@ Migrations are tracked in `schema_migrations` and applied sequentially at startu
 | active_session_id | TEXT | OpenCode session ID |
 | cwd | TEXT | Current working directory |
 | workspace_root | TEXT | Path boundary root |
+| telegram_chat_id | TEXT NULL | Last Telegram chat ID for user |
 | updated_at | INTEGER | Epoch ms |
 
 ### confirmations
@@ -75,9 +80,11 @@ Indexes:
 
 | Column | Type | Notes |
 |---|---|---|
-| message_id | TEXT PK | WhatsApp message ID |
+| message_id | TEXT PK | Inbound transport message/update ID |
 | phone | TEXT | Sender |
 | created_at | INTEGER | Epoch ms |
+
+Note: IDs are transport message IDs (WhatsApp or Telegram), not WhatsApp-only.
 
 Indexes:
 
@@ -100,8 +107,22 @@ Indexes:
 | last_event_id | TEXT | Last processed event id |
 | updated_at | INTEGER | Epoch ms |
 
+### dead_letters
+
+| Column | Type | Notes |
+|---|---|---|
+| id | INTEGER PK AUTOINCREMENT | Row id |
+| channel | TEXT | Transport channel (`whatsapp`, `telegram`) |
+| message_id | TEXT | Inbound message/update id |
+| sender | TEXT | Sender identity snapshot |
+| body | TEXT | Input text or callback data |
+| error | TEXT | Last error string |
+| attempts | INTEGER | Retry attempts before dead-letter |
+| payload_json | TEXT | Raw payload snapshot |
+| created_at | INTEGER | Epoch ms |
+
 ## Data Ownership Rules
 
 - OpenCode session internals remain in OpenCode.
 - SQLite stores control-plane metadata and cache summaries.
-- WhatsApp is transport only (no app state ownership).
+- Transport channels (WhatsApp/Telegram) do not own app state.

@@ -22,6 +22,14 @@ class AccessControllerStub {
   addAllowedNumber() {}
 
   removeAllowedNumber() {}
+
+  bindTelegramUser() {}
+
+  unbindTelegramUser() {}
+
+  listTelegramBindings() {
+    return [];
+  }
 }
 
 test('routes natural language directly to prompt intent', async () => {
@@ -49,6 +57,14 @@ test('routes slash users add command', async () => {
   assert.equal(parsed.command, 'users add');
   assert.equal(parsed.tier, 'safe');
   assert.equal(parsed.args[0], '+15551234567');
+});
+
+test('rejects invalid phone value in users add command parsing', async () => {
+  const router = new CommandRouter(new AccessControllerStub());
+  const parsed = await router.parse('@oc /users add not-a-phone');
+
+  assert.equal(parsed.command, 'users add');
+  assert.equal(parsed.args[0], '');
 });
 
 test('routes slash help command', async () => {
@@ -121,4 +137,21 @@ test('routes run retrieval commands', async () => {
   const get = await router.parse('@oc /get ABCD1234');
   assert.equal(get.command, 'output get');
   assert.equal(get.args[0], 'ABCD1234');
+});
+
+test('routes telegram binding admin commands', async () => {
+  const router = new CommandRouter(new AccessControllerStub());
+
+  const bind = await router.parse('@oc /users bindtg 123456789 +15551234567 alice');
+  assert.equal(bind.command, 'users bindtg');
+  assert.equal(bind.args[0], '123456789');
+  assert.equal(bind.args[1], '+15551234567');
+  assert.equal(bind.args[2], 'alice');
+
+  const unbind = await router.parse('@oc /users unbindtg 123456789');
+  assert.equal(unbind.command, 'users unbindtg');
+  assert.equal(unbind.args[0], '123456789');
+
+  const tglist = await router.parse('@oc /users tglist');
+  assert.equal(tglist.command, 'users tglist');
 });

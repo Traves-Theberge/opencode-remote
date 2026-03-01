@@ -1,4 +1,5 @@
 import { logger } from '../core/logger.js';
+import { config } from '../core/config.js';
 
 const COMMAND_TIERS = {
   status: 'safe',
@@ -7,6 +8,9 @@ const COMMAND_TIERS = {
   'users list': 'safe',
   'users add': 'safe',
   'users remove': 'safe',
+  'users bindtg': 'safe',
+  'users unbindtg': 'safe',
+  'users tglist': 'safe',
   lock: 'safe',
   unlock: 'safe',
   pwd: 'safe',
@@ -131,6 +135,15 @@ export class CommandRouter {
     if (action === 'remove') {
       return this.toParsed('users remove', [this.extractPhone(parts.slice(1))]);
     }
+    if (action === 'bindtg') {
+      return this.toParsed('users bindtg', [parts[1] || '', this.extractPhone(parts.slice(2)), parts[3] || '']);
+    }
+    if (action === 'unbindtg') {
+      return this.toParsed('users unbindtg', [parts[1] || '']);
+    }
+    if (action === 'tglist') {
+      return this.toParsed('users tglist', []);
+    }
     return this.toParsed('help', []);
   }
 
@@ -170,10 +183,9 @@ export class CommandRouter {
 
   extractPhone(tokens) {
     for (const token of tokens) {
-      const cleaned = token.replace(/[^\d+]/g, '');
-      const digits = cleaned.replace(/\D/g, '');
-      if (digits.length >= 8) {
-        return cleaned.startsWith('+') ? cleaned : `+${digits}`;
+      const normalized = config.normalizePhone(token);
+      if (config.isValidPhone(normalized)) {
+        return normalized;
       }
     }
     return '';
@@ -245,6 +257,9 @@ export class CommandRouter {
       'users list': this.handleUsersList.bind(this),
       'users add': this.handleUsersAdd.bind(this),
       'users remove': this.handleUsersRemove.bind(this),
+      'users bindtg': this.handleUsersBindTelegram.bind(this),
+      'users unbindtg': this.handleUsersUnbindTelegram.bind(this),
+      'users tglist': this.handleUsersTelegramList.bind(this),
       lock: this.handleLock.bind(this),
       unlock: this.handleUnlock.bind(this),
     };
@@ -405,6 +420,62 @@ export class CommandRouter {
     return `✅ Removed ${phone} from allowlist`;
   }
 
+  async handleUsersBindTelegram(args, session) {
+    if (!this.accessController.isOwner(session.phoneNumber)) {
+      return '❌ Only the owner can bind Telegram users';
+    }
+
+    const telegramUserId = String(args[0] || '').trim();
+    const phone = args[1];
+    const username = String(args[2] || '').replace(/^@/, '');
+
+    if (!telegramUserId || !/^\d+$/.test(telegramUserId)) {
+      return '❌ Missing or invalid Telegram user ID. Example: @oc /users bindtg 123456789 +15551234567 alice';
+    }
+    if (!phone) {
+      return '❌ Missing phone number. Example: @oc /users bindtg 123456789 +15551234567 alice';
+    }
+
+    try {
+      this.accessController.bindTelegramUser(phone, telegramUserId, username || null, session.phoneNumber);
+      return `✅ Bound Telegram user ${telegramUserId} to ${phone}`;
+    } catch (error) {
+      return `❌ ${error?.message || 'Failed to bind Telegram user'}`;
+    }
+  }
+
+  async handleUsersUnbindTelegram(args, session) {
+    if (!this.accessController.isOwner(session.phoneNumber)) {
+      return '❌ Only the owner can unbind Telegram users';
+    }
+
+    const telegramUserId = String(args[0] || '').trim();
+    if (!telegramUserId || !/^\d+$/.test(telegramUserId)) {
+      return '❌ Missing or invalid Telegram user ID. Example: @oc /users unbindtg 123456789';
+    }
+
+    this.accessController.unbindTelegramUser(telegramUserId, session.phoneNumber);
+    return `✅ Unbound Telegram user ${telegramUserId}`;
+  }
+
+  async handleUsersTelegramList(args, session) {
+    if (!this.accessController.isOwner(session.phoneNumber)) {
+      return '❌ Only the owner can list Telegram bindings';
+    }
+
+    const bindings = this.accessController.listTelegramBindings();
+    if (!bindings.length) {
+      return '📋 No Telegram bindings found.';
+    }
+
+    const lines = bindings.map(
+      (item) =>
+        `• ${item.phone} ↔ ${item.telegram_user_id}${item.telegram_username ? ` (@${item.telegram_username})` : ''}`,
+    );
+
+    return ['📋 Telegram bindings:', ...lines].join('\n');
+  }
+
   async handleLock(args, session) {
     if (!this.accessController.isOwner(session.phoneNumber)) {
       return '❌ Only the owner can lock the system';
@@ -465,6 +536,9 @@ Admin:
 • @oc /users list
 • @oc /users add <number>
 • @oc /users remove <number>
+• @oc /users bindtg <telegramUserId> <number> [username]
+• @oc /users unbindtg <telegramUserId>
+• @oc /users tglist
 • @oc /lock
 • @oc /unlock`;
   }

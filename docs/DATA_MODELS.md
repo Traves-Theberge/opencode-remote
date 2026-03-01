@@ -55,10 +55,13 @@ Used by OpenCode adapter as query/path scope.
 - `phone` primary key
 - `role`: owner/user
 - `active`: allowlist on/off
+- `telegram_user_id` optional transport identity mapping
+- `telegram_username` optional label
 
 ### Binding
 
 - per-phone routing state for active OpenCode session and cwd/workspace root.
+- optional `telegram_chat_id` for channel fan-out notifications.
 
 ### Confirmation
 
@@ -70,7 +73,7 @@ Used by OpenCode adapter as query/path scope.
 
 ### Message Record
 
-- idempotency key for inbound WhatsApp messages.
+- idempotency key for inbound messages across transports.
 
 ### Audit Record
 
@@ -79,3 +82,7 @@ Used by OpenCode adapter as query/path scope.
 ### Event Offset
 
 - stream checkpoint state by stream key (currently `global`).
+
+### Dead Letter
+
+- failed inbound transport payload snapshots with attempts, error, and channel.

@@ -16,6 +16,11 @@ export class SafetyEngine {
 
     if (intent.type === 'shell' || intent.type === 'run') {
       const command = intent.command || '';
+      const commandSafety = this.evaluateCommandSyntax(command);
+      if (!commandSafety.allowed) {
+        return commandSafety;
+      }
+
       const blocked = this.matchesDeniedCommand(command);
       if (blocked) {
         return {
@@ -30,6 +35,38 @@ export class SafetyEngine {
       requiresConfirmation: DANGEROUS_TYPES.has(intent.type),
       reason: null,
     };
+  }
+
+  evaluateCommandSyntax(command) {
+    const text = String(command || '').trim();
+    if (!text) {
+      return { allowed: false, reason: 'Command is empty' };
+    }
+
+    if (text.length > 500) {
+      return { allowed: false, reason: 'Command exceeds maximum length' };
+    }
+
+    if (/\r|\n/.test(text)) {
+      return { allowed: false, reason: 'Multiline commands are not allowed' };
+    }
+
+    const forbidden = [
+      { pattern: /;/, reason: 'Command chaining with ; is not allowed' },
+      { pattern: /&&|\|\|/, reason: 'Logical command chaining is not allowed' },
+      { pattern: /\|/, reason: 'Pipes are not allowed' },
+      { pattern: /`/, reason: 'Backtick execution is not allowed' },
+      { pattern: /\$\(/, reason: 'Subshell execution is not allowed' },
+      { pattern: />|</, reason: 'Redirection is not allowed' },
+    ];
+
+    for (const rule of forbidden) {
+      if (rule.pattern.test(text)) {
+        return { allowed: false, reason: rule.reason };
+      }
+    }
+
+    return { allowed: true, reason: null };
   }
 
   matchesDeniedCommand(command) {

@@ -2,6 +2,52 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Telegram Bot API transport in `src/transport/telegram.js` with:
+  - long polling (dev) and webhook support (prod)
+  - inline keyboard shortcuts and callback command routing
+  - Telegram command alias normalization to shared `@oc` command model
+- Dual-channel app orchestration in `src/index.js` for WhatsApp + Telegram.
+- Telegram identity support in SQLite:
+  - `users.telegram_user_id`, `users.telegram_username`
+  - `bindings.telegram_chat_id`
+- Admin command extensions for Telegram identity management:
+  - `@oc /users bindtg <telegramUserId> <+number> [username]`
+  - `@oc /users unbindtg <telegramUserId>`
+  - `@oc /users tglist`
+- Dead-letter persistence table and API:
+  - migration v3 `dead_letters`
+  - `LocalStore.appendDeadLetter(...)`
+- Session cache maintenance improvements:
+  - stale in-memory session eviction based on age and inactivity windows
+- Security hardening:
+  - strict E.164 validation for parsed phone input
+  - command syntax guardrails for shell/run intents (chaining/subshell/redirection restrictions)
+- Development quality scripts in `package.json`:
+  - `npm run build` (typecheck-backed build pipeline)
+  - `npm run lint` (ESLint for `src/` and `tests/`)
+  - `npm run typecheck` (TypeScript no-emit checks)
+  - `npm run verify` (single-source quality gate with structured logging)
+- ESLint flat config (`eslint.config.js`) and TypeScript project config (`tsconfig.json`).
+- Verification runner script: `scripts/verify.mjs`.
+- Extended docs set for release and operations:
+  - `docs/ERD.md`
+  - `docs/OPERATIONS.md`
+  - `docs/README.md`
+  - `RELEASE_NOTES_v1.1.0.md`
+
+### Changed
+
+- README updated for dual-channel setup (Telegram + WhatsApp), admin binding commands, and storage notes.
+- Audit flow consolidated to SQLite `audit` table (single write path).
+- Inbound processing now includes retry + dead-letter capture for transport failures.
+- Command and data model documentation updated for Telegram identity and dead-letter support.
+- README upgraded with badges, full documentation matrix, and explicit quality command coverage.
+- Documentation cross-linking expanded across schema, ERD, and operations content.
+
 ## [1.1.0] - 2026-03-01
 
 ### Added

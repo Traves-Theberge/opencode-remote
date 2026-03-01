@@ -52,3 +52,32 @@ test('blocks path escape outside workspace root', () => {
     cleanup();
   }
 });
+
+test('evicts stale non-busy sessions from memory cache', () => {
+  const { access, cleanup } = withAccess();
+  try {
+    const session = access.getOrCreateSession('+15550001111');
+    session.createdAt = Date.now() - 2 * 24 * 60 * 60 * 1000;
+    session.lastActivity = Date.now() - 3 * 60 * 60 * 1000;
+    session.busy = false;
+
+    access.cleanupStaleSessions();
+
+    assert.equal(access.sessions.has('+15550001111'), false);
+  } finally {
+    cleanup();
+  }
+});
+
+test('binds and unbinds telegram users via access controller', () => {
+  const { access, store, cleanup } = withAccess();
+  try {
+    access.bindTelegramUser('+15550001111', '777001', 'owneruser', '+15550001111');
+    assert.equal(store.getPhoneByTelegramUserId('777001'), '+15550001111');
+
+    access.unbindTelegramUser('777001', '+15550001111');
+    assert.equal(store.getPhoneByTelegramUserId('777001'), null);
+  } finally {
+    cleanup();
+  }
+});

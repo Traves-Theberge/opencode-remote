@@ -3,7 +3,8 @@
 ## Runtime Paths
 
 - SQLite DB: `storage.dbPath` (default `./data/opencode-remote.db`)
-- File audit log: `data/audit.log`
+- Audit events: SQLite `audit` table
+- Dead letters: SQLite `dead_letters` table
 - WhatsApp local auth: `./.wwebjs_auth`
 
 ## Start and Stop
@@ -23,7 +24,25 @@ npm run dev
 Graceful stop:
 
 - `Ctrl+C` or `SIGTERM`
-- App closes WhatsApp client and event stream subscription before exit
+- App closes enabled transports (WhatsApp and/or Telegram) and event stream subscription before exit
+
+## Verification Commands
+
+Run before release or deployment:
+
+```bash
+npm run verify
+```
+
+Optional combined pipeline:
+
+```bash
+npm run build
+```
+
+(`build` currently executes typecheck as the build gate.)
+
+`verify` runs lint, typecheck, and tests with structured step logging for a single-source quality gate.
 
 ## Initial Provisioning
 
@@ -64,7 +83,14 @@ Add user:
 
 ### Duplicate message behavior
 
-Message dedupe uses WhatsApp message IDs in SQLite `messages` table with rolling cleanup.
+Message dedupe uses inbound transport message/update IDs in SQLite `messages` table with rolling cleanup.
+
+### Telegram access denied for expected user
+
+- Bind Telegram identity to an allowlisted phone:
+  - `@oc /users bindtg <telegramUserId> <+number> [username]`
+- List bindings:
+  - `@oc /users tglist`
 
 ### No permission prompt notifications
 
@@ -84,6 +110,7 @@ Use:
 - `messages` table is continuously pruned for recent dedupe window.
 - `confirmations` table is pruned by expiration cleanup loop.
 - `runs` and `audit` currently grow over time; add retention policies if required.
+- `dead_letters` currently grows over time; add retention policies if required.
 
 ## Suggested Retention Policy (future)
 

@@ -23,7 +23,7 @@ test('applies schema migrations and exposes versions', () => {
   const { store, cleanup } = withStore();
   try {
     const migrations = store.getSchemaMigrations();
-    assert.ok(migrations.length >= 2);
+    assert.ok(migrations.length >= 4);
     assert.equal(migrations[0].version, 1);
   } finally {
     cleanup();
@@ -70,6 +70,54 @@ test('deduplicates message ids', () => {
     assert.equal(store.isMessageProcessed('msg-1'), false);
     store.markMessageProcessed('msg-1', '+15550001111');
     assert.equal(store.isMessageProcessed('msg-1'), true);
+  } finally {
+    cleanup();
+  }
+});
+
+test('stores dead-letter events', () => {
+  const { store, cleanup } = withStore();
+  try {
+    store.appendDeadLetter({
+      channel: 'whatsapp',
+      messageId: 'msg-123',
+      sender: '+15550001111',
+      body: '@oc /status',
+      error: 'simulated failure',
+      attempts: 3,
+      payload: { timestamp: 12345 },
+    });
+
+    const row = store.db
+      .prepare('SELECT * FROM dead_letters WHERE message_id = ? LIMIT 1')
+      .get('msg-123');
+
+    assert.equal(row.channel, 'whatsapp');
+    assert.equal(row.attempts, 3);
+    assert.equal(row.sender, '+15550001111');
+  } finally {
+    cleanup();
+  }
+});
+
+test('stores and resolves telegram identity mapping', () => {
+  const { store, cleanup } = withStore();
+  try {
+    store.addOrActivateUser('+15550009999', 'user');
+    store.setTelegramIdentity('+15550009999', {
+      userId: '123456789',
+      username: 'alice',
+    });
+
+    const phone = store.getPhoneByTelegramUserId('123456789');
+    assert.equal(phone, '+15550009999');
+
+    const bindings = store.listTelegramBindings();
+    assert.equal(bindings.length, 1);
+    assert.equal(bindings[0].telegram_username, 'alice');
+
+    store.clearTelegramIdentityByUserId('123456789');
+    assert.equal(store.getPhoneByTelegramUserId('123456789'), null);
   } finally {
     cleanup();
   }

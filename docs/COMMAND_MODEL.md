@@ -2,7 +2,8 @@
 
 ## Alias
 
-- Only messages beginning with `@oc` are processed.
+- WhatsApp: only messages beginning with `@oc` are processed.
+- Telegram: plain text is normalized to `@oc <text>` and slash aliases are normalized to `@oc /...`.
 
 ## Routing Rules
 
@@ -21,7 +22,7 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 - Execution: `/run <command>`, `/shell <command>`, `/abort`
 - Permission workflow: `/permission <id> <once|always|reject>`, `/allow <id>`, `/deny <id>`
 - Output retrieval: `/runs`, `/get <runId>`
-- Access admin: `/users list`, `/users add <number>`, `/users remove <number>`, `/lock`, `/unlock`
+- Access admin: `/users list`, `/users add <number>`, `/users remove <number>`, `/users bindtg <telegramUserId> <number> [username]`, `/users unbindtg <telegramUserId>`, `/users tglist`, `/lock`, `/unlock`
 
 ## Safety and Confirmation
 
@@ -31,7 +32,7 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 
 ## Edge Case Handling
 
-- Duplicate WhatsApp message IDs are ignored via persisted dedupe table.
+- Duplicate inbound transport message IDs are ignored via persisted dedupe table.
 - Per-user concurrency guard prevents simultaneous command overlap.
 - Path traversal is blocked outside workspace root.
 - Unknown slash command falls back to prompt intent.

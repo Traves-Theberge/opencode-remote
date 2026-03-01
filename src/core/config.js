@@ -2,10 +2,27 @@ import Conf from 'conf';
 
 const defaults = {
   whatsapp: {
+    enabled: true,
     sessionPath: './.wwebjs_auth',
     qrTimeout: 120000,
     reconnectDelay: 5000,
     maxReconnectAttempts: 5,
+    messageMaxRetries: 3,
+    messageRetryDelayMs: 1500,
+  },
+  telegram: {
+    enabled: true,
+    botToken: '',
+    ownerUserId: '',
+    pollingEnabled: true,
+    pollingIntervalMs: 1200,
+    pollingTimeoutSec: 30,
+    webhookEnabled: false,
+    webhookUrl: '',
+    webhookSecret: '',
+    webhookHost: '0.0.0.0',
+    webhookPort: 4097,
+    webhookPath: '/telegram/webhook',
   },
   opencode: {
     serverUrl: 'http://localhost:4096',
@@ -17,6 +34,8 @@ const defaults = {
   security: {
     inactivityTimeout: 15 * 60 * 1000,
     maxConfirmAge: 5 * 60 * 1000,
+    sessionMaxAge: 24 * 60 * 60 * 1000,
+    sessionStaleTimeout: 2 * 60 * 60 * 1000,
     ownerNumber: '',
     allowedNumbers: [],
   },
@@ -74,6 +93,11 @@ class Config {
     }
 
     return stripped ? `+${stripped}` : '';
+  }
+
+  isValidPhone(number) {
+    const normalized = this.normalizePhone(number);
+    return /^\+[1-9]\d{7,14}$/.test(normalized);
   }
 
   addAllowedNumber(number) {

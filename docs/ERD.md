@@ -6,6 +6,8 @@ erDiagram
     text phone PK
     text role
     integer active
+    text telegram_user_id
+    text telegram_username
     integer created_at
     integer updated_at
   }
@@ -15,6 +17,7 @@ erDiagram
     text active_session_id
     text cwd
     text workspace_root
+    text telegram_chat_id
     integer updated_at
   }
 
@@ -55,6 +58,18 @@ erDiagram
     integer updated_at
   }
 
+  DEAD_LETTERS {
+    integer id PK
+    text channel
+    text message_id
+    text sender
+    text body
+    text error
+    integer attempts
+    text payload_json
+    integer created_at
+  }
+
   SCHEMA_MIGRATIONS {
     integer version PK
     text name
@@ -69,7 +84,8 @@ erDiagram
 
 ## Notes
 
-- `bindings.active_session_id` maps WhatsApp users to OpenCode sessions.
+- `bindings.active_session_id` maps users to OpenCode sessions.
 - `confirmations.action_json` stores serialized intent payloads for dangerous action approval.
-- `runs` is a retrieval cache for WhatsApp-friendly output lookup (`/runs`, `/get`).
+- `runs` is a retrieval cache for channel-friendly output lookup (`/runs`, `/get`).
 - `event_offsets` supports durable stream checkpointing for OpenCode global events.
+- `dead_letters` captures failed inbound updates after retry exhaustion.

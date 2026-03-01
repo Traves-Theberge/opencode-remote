@@ -4,8 +4,9 @@ import { logger } from '../core/logger.js';
 import { config } from '../core/config.js';
 
 export class WhatsAppTransport {
-  constructor(onMessage) {
+  constructor(onMessage, options = {}) {
     this.onMessage = onMessage;
+    this.onDeadLetter = options.onDeadLetter || null;
     this.client = null;
     this.connected = false;
     this.reconnectAttempts = 0;
@@ -42,7 +43,7 @@ export class WhatsAppTransport {
 
     this.client.on('message', async (message) => {
       try {
-        await this.handleIncomingMessage(message);
+        await this.handleIncomingMessageWithRetry(message);
       } catch (error) {
         logger.error({ err: error }, 'Error handling message');
       }
@@ -100,6 +101,67 @@ export class WhatsAppTransport {
     }
   }
 
+  async handleIncomingMessageWithRetry(message) {
+    const maxRetries = Number(config.get('whatsapp.messageMaxRetries')) || 3;
+    const retryDelayMs = Number(config.get('whatsapp.messageRetryDelayMs')) || 1500;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.handleIncomingMessage(message);
+        return;
+      } catch (error) {
+        const isLast = attempt === maxRetries;
+        logger.warn(
+          {
+            err: error,
+            attempt,
+            maxRetries,
+            messageId: message?.id?._serialized || null,
+          },
+          'Incoming message handling attempt failed',
+        );
+
+        if (isLast) {
+          await this.moveToDeadLetter(message, error, attempt);
+          return;
+        }
+
+        await this.sleep(retryDelayMs * attempt);
+      }
+    }
+  }
+
+  async moveToDeadLetter(message, error, attempts) {
+    const payload = {
+      channel: 'whatsapp',
+      messageId: message?.id?._serialized || null,
+      sender: message?.from || null,
+      body: message?.body || '',
+      error: String(error?.message || error),
+      attempts,
+      payload: {
+        timestamp: message?.timestamp || null,
+      },
+    };
+
+    if (this.onDeadLetter) {
+      try {
+        await this.onDeadLetter(payload);
+      } catch (callbackError) {
+        logger.error({ err: callbackError }, 'Dead-letter callback failed');
+      }
+    }
+
+    logger.error(
+      {
+        messageId: payload.messageId,
+        sender: payload.sender,
+        attempts,
+      },
+      'Message moved to dead-letter queue',
+    );
+  }
+
   async send(to, text) {
     if (!this.connected || !this.client) {
       logger.warn('Cannot send: client not connected');
@@ -143,6 +205,10 @@ export class WhatsAppTransport {
     if (current) chunks.push(current);
     
     return chunks;
+  }
+
+  sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   async sendToOwner(text) {

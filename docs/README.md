@@ -6,5 +6,7 @@
 - SQLite schema and migration details: `docs/DATABASE_SCHEMA.md`
 - Database ERD: `docs/ERD.md`
 - Operations and runbook guidance: `docs/OPERATIONS.md`
+- Telegram dual-channel design: `docs/plans/2026-03-01-telegram-dual-channel-design.md`
+- Telegram implementation roadmap: `docs/plans/2026-03-01-telegram-dual-channel-implementation-plan.md`
 - Release history: `CHANGELOG.md`
 - Current release notes: `RELEASE_NOTES_v1.1.0.md`
