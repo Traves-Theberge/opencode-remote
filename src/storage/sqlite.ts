@@ -19,13 +19,43 @@ interface MessageDedupRecord {
   transportMessageId: string;
 }
 
+interface SchemaMigrationRow {
+  version: number;
+  name: string;
+  applied_at: number;
+}
+
+interface BindingRow {
+  phone: string;
+  active_session_id: string | null;
+  cwd: string | null;
+  workspace_root: string | null;
+  telegram_chat_id?: string | null;
+  updated_at: number;
+}
+
+interface TelegramBindingRow {
+  phone: string;
+  telegram_user_id: string;
+  telegram_username: string | null;
+}
+
+interface RunRow {
+  run_id: string;
+  phone: string;
+  session_id: string | null;
+  command_type: string;
+  display: string;
+  raw: string;
+  created_at: number;
+}
+
 export class LocalStore {
   dbPath: string;
-  db: Database.Database | null;
+  db!: Database.Database;
 
   constructor(dbPath = './data/opencode-remote.db') {
     this.dbPath = dbPath;
-    this.db = null;
   }
 
   init() {
@@ -179,12 +209,10 @@ export class LocalStore {
       },
     ];
 
-    const applied = new Set(
-      this.db
-        .prepare('SELECT version FROM schema_migrations ORDER BY version ASC')
-        .all()
-        .map((row) => row.version),
-    );
+    const appliedRows = this.db
+      .prepare('SELECT version FROM schema_migrations ORDER BY version ASC')
+      .all() as Array<{ version: number }>;
+    const applied = new Set<number>(appliedRows.map((row) => row.version));
 
     const insertMigration = this.db.prepare(
       'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
@@ -203,18 +231,18 @@ export class LocalStore {
     }
   }
 
-  ensureOwner(phone) {
+  ensureOwner(phone: string): void {
     if (!phone) {
       return;
     }
     this.addOrActivateUser(phone, 'owner');
   }
 
-  normalizeRole(role) {
+  normalizeRole(role: string): 'owner' | 'user' {
     return role === 'owner' ? 'owner' : 'user';
   }
 
-  addOrActivateUser(phone, role = 'user') {
+  addOrActivateUser(phone: string, role = 'user'): void {
     const now = Date.now();
     const safeRole = this.normalizeRole(role);
     const stmt = this.db.prepare(`
@@ -228,35 +256,35 @@ export class LocalStore {
     stmt.run({ phone, role: safeRole, now });
   }
 
-  deactivateUser(phone) {
+  deactivateUser(phone: string): void {
     const now = Date.now();
     this.db
       .prepare('UPDATE users SET active = 0, updated_at = ? WHERE phone = ?')
       .run(now, phone);
   }
 
-  isAllowed(phone) {
+  isAllowed(phone: string): boolean {
     const row = this.db
       .prepare('SELECT 1 FROM users WHERE phone = ? AND active = 1')
       .get(phone);
     return Boolean(row);
   }
 
-  isOwner(phone) {
+  isOwner(phone: string): boolean {
     const row = this.db
       .prepare('SELECT 1 FROM users WHERE phone = ? AND active = 1 AND role = ?')
       .get(phone, 'owner');
     return Boolean(row);
   }
 
-  listAllowedNumbers() {
-    return this.db
+  listAllowedNumbers(): string[] {
+    const rows = this.db
       .prepare('SELECT phone FROM users WHERE active = 1 ORDER BY role DESC, phone ASC')
-      .all()
-      .map((row) => row.phone);
+      .all() as Array<{ phone: string }>;
+    return rows.map((row) => row.phone);
   }
 
-  setTelegramIdentity(phone, { userId, username }) {
+  setTelegramIdentity(phone: string, { userId, username }: { userId: string; username: string | null }): void {
     const telegramUserId = String(userId || '').trim();
     if (!telegramUserId) {
       return;
@@ -275,7 +303,7 @@ export class LocalStore {
       .run(telegramUserId, username || null, Date.now(), phone);
   }
 
-  clearTelegramIdentityByUserId(userId) {
+  clearTelegramIdentityByUserId(userId: string): void {
     const telegramUserId = String(userId || '').trim();
     if (!telegramUserId) {
       return;
@@ -294,7 +322,7 @@ export class LocalStore {
       .run(Date.now(), telegramUserId);
   }
 
-  getPhoneByTelegramUserId(userId) {
+  getPhoneByTelegramUserId(userId: string): string | null {
     const telegramUserId = String(userId || '').trim();
     if (!telegramUserId) {
       return null;
@@ -302,12 +330,12 @@ export class LocalStore {
 
     const row = this.db
       .prepare('SELECT phone FROM users WHERE active = 1 AND telegram_user_id = ? LIMIT 1')
-      .get(telegramUserId);
+      .get(telegramUserId) as { phone?: string } | undefined;
 
     return row?.phone || null;
   }
 
-  listTelegramBindings() {
+  listTelegramBindings(): TelegramBindingRow[] {
     return this.db
       .prepare(
         `
@@ -317,14 +345,17 @@ export class LocalStore {
         ORDER BY phone ASC
       `,
       )
-      .all();
+        .all() as TelegramBindingRow[];
   }
 
-  getBinding(phone) {
-    return this.db.prepare('SELECT * FROM bindings WHERE phone = ?').get(phone) || null;
+  getBinding(phone: string): BindingRow | null {
+    return (this.db.prepare('SELECT * FROM bindings WHERE phone = ?').get(phone) as BindingRow | undefined) || null;
   }
 
-  upsertBinding(phone, patch) {
+  upsertBinding(
+    phone: string,
+    patch: { activeSessionId?: string | null; cwd?: string | null; workspaceRoot?: string | null; telegramChatId?: string | null },
+  ): void {
     const current = this.getBinding(phone) || {
       active_session_id: null,
       cwd: null,
@@ -369,18 +400,17 @@ export class LocalStore {
     }
   }
 
-  findBindingBySessionId(sessionId) {
+  findBindingBySessionId(sessionId: string): BindingRow | null {
     if (!sessionId) {
       return null;
     }
-    return (
-      this.db
-        .prepare('SELECT * FROM bindings WHERE active_session_id = ? LIMIT 1')
-        .get(sessionId) || null
-    );
+    const row = this.db
+      .prepare('SELECT * FROM bindings WHERE active_session_id = ? LIMIT 1')
+      .get(sessionId) as BindingRow | undefined;
+    return row || null;
   }
 
-  createConfirmation({ id, phone, action, expiresAt }) {
+  createConfirmation({ id, phone, action, expiresAt }: { id: string; phone: string; action: unknown; expiresAt: number }): void {
     const now = Date.now();
     this.db
       .prepare(
@@ -389,8 +419,10 @@ export class LocalStore {
       .run(id, phone, JSON.stringify(action), expiresAt, now);
   }
 
-  getConfirmation(id) {
-    const row = this.db.prepare('SELECT * FROM confirmations WHERE id = ?').get(id);
+  getConfirmation(id: string) {
+    const row = this.db.prepare('SELECT * FROM confirmations WHERE id = ?').get(id) as
+      | { id: string; phone: string; action_json: string; expires_at: number; created_at: number }
+      | undefined;
     if (!row) {
       return null;
     }
@@ -403,15 +435,29 @@ export class LocalStore {
     };
   }
 
-  deleteConfirmation(id) {
+  deleteConfirmation(id: string): void {
     this.db.prepare('DELETE FROM confirmations WHERE id = ?').run(id);
   }
 
-  cleanupConfirmations(now = Date.now()) {
+  cleanupConfirmations(now = Date.now()): void {
     this.db.prepare('DELETE FROM confirmations WHERE expires_at < ?').run(now);
   }
 
-  saveRun({ runId, phone, sessionId, commandType, display, raw }) {
+  saveRun({
+    runId,
+    phone,
+    sessionId,
+    commandType,
+    display,
+    raw,
+  }: {
+    runId: string;
+    phone: string;
+    sessionId: string | null;
+    commandType: string;
+    display: string;
+    raw: string;
+  }): void {
     const now = Date.now();
     this.db
       .prepare(
@@ -420,18 +466,17 @@ export class LocalStore {
       .run(runId, phone, sessionId || null, commandType, display, raw, now);
   }
 
-  getRun(runId, phone) {
-    return (
-      this.db
-        .prepare('SELECT * FROM runs WHERE run_id = ? AND phone = ? LIMIT 1')
-        .get(String(runId || '').toUpperCase(), phone) || null
-    );
+  getRun(runId: string, phone: string): RunRow | null {
+    const row = this.db
+      .prepare('SELECT * FROM runs WHERE run_id = ? AND phone = ? LIMIT 1')
+      .get(String(runId || '').toUpperCase(), phone) as RunRow | undefined;
+    return row || null;
   }
 
-  listRuns(phone, limit = 10) {
+  listRuns(phone: string, limit = 10): RunRow[] {
     return this.db
       .prepare('SELECT * FROM runs WHERE phone = ? ORDER BY created_at DESC LIMIT ?')
-      .all(phone, limit);
+      .all(phone, limit) as RunRow[];
   }
 
   isMessageProcessed(dedupKey: string): boolean {
@@ -493,15 +538,19 @@ export class LocalStore {
       );
   }
 
-  getSchemaMigrations() {
-    return this.db.prepare('SELECT * FROM schema_migrations ORDER BY version ASC').all();
+  getSchemaMigrations(): SchemaMigrationRow[] {
+    return this.db.prepare('SELECT * FROM schema_migrations ORDER BY version ASC').all() as SchemaMigrationRow[];
   }
 
-  getEventOffset(stream) {
-    return this.db.prepare('SELECT * FROM event_offsets WHERE stream = ?').get(stream) || null;
+  getEventOffset(stream: string): { stream: string; last_event_id: string | null; updated_at: number } | null {
+    return (
+      this.db.prepare('SELECT * FROM event_offsets WHERE stream = ?').get(stream) as
+        | { stream: string; last_event_id: string | null; updated_at: number }
+        | undefined
+    ) || null;
   }
 
-  setEventOffset(stream, lastEventId) {
+  setEventOffset(stream: string, lastEventId: string | null): void {
     this.db
       .prepare(
         `
@@ -515,10 +564,7 @@ export class LocalStore {
       .run(stream, lastEventId || null, Date.now());
   }
 
-  close() {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-    }
+  close(): void {
+    this.db.close();
   }
 }

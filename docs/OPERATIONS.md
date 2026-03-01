@@ -21,10 +21,42 @@ Dev mode:
 npm run dev
 ```
 
+Daemon runs through workspace entrypoint `apps/daemon/src/index.ts`.
+
 Graceful stop:
 
 - `Ctrl+C` or `SIGTERM`
 - App closes enabled transports (WhatsApp and/or Telegram) and event stream subscription before exit
+
+## Management Surfaces
+
+CLI (wizard + maintenance):
+
+```bash
+npm run cli -- help
+```
+
+TUI (visual manager shell):
+
+```bash
+npm run tui
+```
+
+Bridge package (`packages/bridge`) is the shared control-plane API used by both CLI and TUI for:
+
+- config reads/writes
+- db stats and operational tables
+- maintenance tasks (`vacuum`, prune)
+- unified task execution contract (`status`, `logs`, `flow`, `deadletters`, `db.*`)
+
+### Flow tracking and visualizer
+
+- TUI visualizer derives stages and transitions from `audit` events.
+- CLI equivalent is available via:
+
+```bash
+npm run cli -- flow 120
+```
 
 ## Verification Commands
 
@@ -123,6 +155,14 @@ Use:
 - `confirmations` table is pruned by expiration cleanup loop.
 - `runs` and `audit` currently grow over time; add retention policies if required.
 - `dead_letters` currently grows over time; add retention policies if required.
+
+CLI prune examples:
+
+```bash
+npm run cli -- db prune audit 90
+npm run cli -- db prune runs 30
+npm run cli -- db prune dead_letters 30
+```
 
 ## Suggested Retention Policy (future)
 

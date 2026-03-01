@@ -120,8 +120,11 @@ test('stores dead-letter events', () => {
 
     const row = store.db
       .prepare('SELECT * FROM dead_letters WHERE message_id = ? LIMIT 1')
-      .get('msg-123');
+      .get('msg-123') as
+      | { channel: string; attempts: number; sender: string }
+      | undefined;
 
+    assert.ok(row);
     assert.equal(row.channel, 'whatsapp');
     assert.equal(row.attempts, 3);
     assert.equal(row.sender, '+15550001111');

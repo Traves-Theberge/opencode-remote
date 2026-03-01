@@ -5,6 +5,11 @@
 - OpenCode: source of truth for coding sessions, prompts, tools, and permission state.
 - WhatsApp (`whatsapp-web.js`) and Telegram (Bot API): command and response transport channels.
 - Local SQLite (`better-sqlite3`): control-plane state for routing, authz, idempotency, and cached output retrieval.
+- Monorepo operator surfaces:
+  - `apps/daemon` runtime entrypoint
+  - `apps/cli` onboarding/maintenance interface
+  - `apps/tui` visual operations cockpit
+  - `packages/bridge` shared task and management contract
 
 ## Request Lifecycle
 
@@ -19,6 +24,13 @@
 7. Result is formatted by `src/presentation/formatter.ts` and optionally assigned a run ID.
 8. Run metadata is persisted to SQLite (`runs` table).
 9. Response is chunked and sent back through the originating transport.
+
+## Control-Plane Parity Model
+
+- Router command namespaces map deterministic operator commands to typed intents.
+- Executor resolves intents to adapter calls.
+- Adapter isolates SDK endpoint details from transport and command DSL.
+- Namespaces include session/path/exec plus advanced model/tool/MCP/skills/diagnostics controls.
 
 ## Event Lifecycle
 

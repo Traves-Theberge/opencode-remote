@@ -264,8 +264,105 @@ export class CommandExecutor {
         return this.formatter.formatSuccess('Abort', 'Active session aborted.');
       }
 
+      case 'model.status': {
+        const model = await this.adapter.getModelStatus();
+        return this.formatter.formatSuccess('Model Status', this.pretty(model));
+      }
+
+      case 'model.list': {
+        const providers = await this.adapter.listProviders();
+        return this.formatter.formatSuccess('Model Providers', this.pretty(providers));
+      }
+
+      case 'model.set': {
+        const providerId = String(intent.providerId || '');
+        const modelId = String(intent.modelId || '');
+        if (!providerId || !modelId) {
+          return this.formatter.formatError('Model', 'Usage: @oc /model set <providerId> <modelId>');
+        }
+        await this.adapter.setModel(providerId, modelId);
+        return this.formatter.formatSuccess('Model', `Updated active model to ${providerId}/${modelId}`);
+      }
+
+      case 'tools.ids': {
+        const ids = await this.adapter.listToolIds();
+        return this.formatter.formatSuccess('Tools IDs', this.pretty(ids));
+      }
+
+      case 'tools.list': {
+        const providerId = String(intent.providerId || '');
+        const modelId = String(intent.modelId || '');
+        const tools = await this.adapter.listTools(providerId, modelId);
+        return this.formatter.formatSuccess('Tools', this.pretty(tools));
+      }
+
+      case 'mcp.status': {
+        const mcp = await this.adapter.getMcpStatus();
+        return this.formatter.formatSuccess('MCP Status', this.pretty(mcp));
+      }
+
+      case 'mcp.add': {
+        const name = String(intent.name || '');
+        const command = String(intent.command || '');
+        if (!name || !command) {
+          return this.formatter.formatError('MCP', 'Usage: @oc /mcp add <name> <command>');
+        }
+        await this.adapter.addMcpServer(name, command);
+        return this.formatter.formatSuccess('MCP', `Added MCP server ${name}`);
+      }
+
+      case 'mcp.connect': {
+        const server = String(intent.server || '');
+        if (!server) {
+          return this.formatter.formatError('MCP', 'Usage: @oc /mcp connect <server>');
+        }
+        await this.adapter.connectMcp(server);
+        return this.formatter.formatSuccess('MCP', `Connected MCP server ${server}`);
+      }
+
+      case 'mcp.disconnect': {
+        const server = String(intent.server || '');
+        if (!server) {
+          return this.formatter.formatError('MCP', 'Usage: @oc /mcp disconnect <server>');
+        }
+        await this.adapter.disconnectMcp(server);
+        return this.formatter.formatSuccess('MCP', `Disconnected MCP server ${server}`);
+      }
+
+      case 'skills.list': {
+        const skills = await this.adapter.listSkills();
+        return this.formatter.formatSuccess('Skills', this.pretty(skills));
+      }
+
+      case 'opencode.status': {
+        const status = await this.adapter.getModelStatus();
+        return this.formatter.formatSuccess('OpenCode Status', this.pretty(status));
+      }
+
+      case 'opencode.providers': {
+        const providers = await this.adapter.listProviders();
+        return this.formatter.formatSuccess('OpenCode Providers', this.pretty(providers));
+      }
+
+      case 'opencode.commands': {
+        const commands = await this.adapter.listCommands();
+        return this.formatter.formatSuccess('OpenCode Commands', this.pretty(commands));
+      }
+
+      case 'opencode.diagnostics': {
+        const diagnostics = await this.adapter.getDiagnostics();
+        return this.formatter.formatSuccess('OpenCode Diagnostics', this.pretty(diagnostics));
+      }
+
       default:
         return this.formatter.formatError('Execute', `Unsupported intent: ${intent.type}`);
     }
+  }
+
+  pretty(value: unknown): string {
+    if (typeof value === 'string') {
+      return value;
+    }
+    return `\n\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
   }
 }

@@ -2,3 +2,8 @@ node_modules/
 .wwebjs_auth/
 data/
 *.log
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal

@@ -2,13 +2,20 @@
   "name": "opencode-remote",
   "version": "1.0.0",
   "description": "OpenCode Remote Control via WhatsApp and Telegram",
+  "private": true,
   "type": "module",
-  "main": "src/index.ts",
+  "main": "apps/daemon/src/index.ts",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "build": "npm run typecheck",
     "lint": "eslint --no-error-on-unmatched-pattern \"src/**/*.js\" \"tests/**/*.js\"",
-    "start": "tsx src/index.ts",
-    "dev": "tsx watch src/index.ts",
+    "start": "npm --workspace @opencode-remote/daemon run start",
+    "dev": "npm --workspace @opencode-remote/daemon run dev",
+    "cli": "npm --workspace @opencode-remote/cli run start --",
+    "tui": "npm --workspace @opencode-remote/tui run start",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "tsx --test tests/*.test.ts",
     "verify": "node scripts/verify.mjs"
@@ -16,20 +23,20 @@
   "dependencies": {
     "whatsapp-web.js": "^1.26.0",
     "@opencode-ai/sdk": "^1.2.15",
-    "better-sqlite3": "^11.7.2",
+    "better-sqlite3": "^12.6.2",
     "qrcode": "^1.5.4",
-    "pino": "^9.6.0",
+    "pino": "^10.3.1",
     "pino-pretty": "^13.0.0",
-    "conf": "^12.0.0",
-    "uuid": "^11.0.5"
+    "conf": "^15.1.0",
+    "uuid": "^13.0.0"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.21.0",
-    "eslint": "^9.21.0",
-    "globals": "^15.15.0",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.2",
+    "globals": "^17.4.0",
     "tsx": "^4.20.5",
     "typescript": "^5.8.2"
   }

@@ -6,6 +6,41 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- Workspace daemon app (`apps/daemon`) and root runtime wiring.
+- Phase 2 control-plane parity command namespaces:
+  - `model`: status/list/set
+  - `tools`: ids/list
+  - `mcp`: status/add/connect/disconnect
+  - `skills`: list
+  - `opencode`: status/providers/commands/diagnostics
+- Adapter support for advanced OpenCode endpoints:
+  - provider, command, tool, app agents, mcp, diagnostics surfaces
+- Unified task contract in bridge package:
+  - task catalog + task execution API shared by CLI and TUI
+- Interactive TUI operator cockpit enhancements:
+  - keyboard task runner
+  - in-TUI onboarding form flow
+  - flow visualizer, transition tracker, recent timeline
+  - pane-based dashboard navigation (overview/flow/tasks/output)
+  - timeline and output paging controls
+- Installation bootstrap script: `scripts/install.sh`
+- Bridge task tests: `tests/bridge.test.ts`
+- Monorepo workspace scaffolding:
+  - `apps/cli`
+  - `apps/tui`
+  - `packages/bridge`
+- CLI management surface in `apps/cli`:
+  - onboarding setup wizard (`setup`)
+  - status/log/dead-letter inspection (`status`, `logs`, `deadletters`)
+  - db maintenance (`db info`, `db vacuum`, `db prune`)
+- TUI management shell in `apps/tui` using OpenTUI:
+  - onboarding-required state view
+  - runtime and database summary dashboard
+- Shared management bridge in `packages/bridge`:
+  - unified config access
+  - sqlite stats/audit/dead-letter/run queries
+  - maintenance operations (vacuum and retention prune)
+- New onboarding guide: `docs/ONBOARDING.md`
 - Telegram Bot API transport in `src/transport/telegram.ts` with:
   - long polling (dev) and webhook support (prod)
   - inline keyboard shortcuts and callback command routing
@@ -51,6 +86,16 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Dependency refresh to latest stable major/minor targets for core runtime/dev stack (including `better-sqlite3`, `conf`, `pino`, `uuid`, `eslint`, and `globals`).
+- Root start/dev scripts now run daemon via workspace app (`@opencode-remote/daemon`).
+- `.gitignore` strengthened for local DB artifacts (`*.db`, `*.sqlite*`, WAL/SHM).
+- Command model docs expanded to describe deterministic namespace parity and safety tiers.
+- Operations docs expanded with flow tracking and shared bridge task model.
+- Command model docs now include explicit permission/safety policy matrix by namespace.
+- Root package updated for npm workspaces and management entry scripts:
+  - `npm run cli -- <command>`
+  - `npm run tui`
+- README and operations docs updated for monorepo, CLI/TUI flows, and bridge-based maintenance.
 - README updated for dual-channel setup (Telegram + WhatsApp), admin binding commands, and storage notes.
 - Audit flow consolidated to SQLite `audit` table (single write path).
 - Inbound processing now includes retry + dead-letter capture for transport failures.

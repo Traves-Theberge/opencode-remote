@@ -58,6 +58,20 @@ const COMMAND_TIERS = {
   'output runs': 'safe',
   diff: 'safe',
   summarize: 'safe',
+  'model status': 'safe',
+  'model list': 'safe',
+  'model set': 'dangerous',
+  'tools ids': 'safe',
+  'tools list': 'safe',
+  'mcp status': 'safe',
+  'mcp add': 'dangerous',
+  'mcp connect': 'dangerous',
+  'mcp disconnect': 'dangerous',
+  'skills list': 'safe',
+  'opencode status': 'safe',
+  'opencode providers': 'safe',
+  'opencode commands': 'safe',
+  'opencode diagnostics': 'safe',
   prompt: 'elevated',
   run: 'dangerous',
   shell: 'dangerous',
@@ -135,6 +149,18 @@ export class CommandRouter {
         return this.toParsed('projects', []);
       case 'project':
         return this.parseProject(rest);
+      case 'model':
+        return this.parseModel(rest);
+      case 'tools':
+      case 'tool':
+        return this.parseTools(rest);
+      case 'mcp':
+        return this.parseMcp(rest);
+      case 'skills':
+      case 'agents':
+        return this.parseSkills(rest);
+      case 'opencode':
+        return this.parseOpencode(rest);
       case 'run':
         return this.toParsed('run', [rest.join(' ')]);
       case 'shell':
@@ -212,6 +238,73 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
+  parseModel(parts: string[]): ParsedCommand {
+    const action = (parts[0] || 'status').toLowerCase();
+    if (action === 'status') {
+      return this.toParsed('model status', []);
+    }
+    if (action === 'list' || action === 'providers') {
+      return this.toParsed('model list', []);
+    }
+    if (action === 'set') {
+      return this.toParsed('model set', [parts[1] || '', parts[2] || '']);
+    }
+    return this.toParsed('help', []);
+  }
+
+  parseTools(parts: string[]): ParsedCommand {
+    const action = (parts[0] || 'ids').toLowerCase();
+    if (action === 'ids') {
+      return this.toParsed('tools ids', []);
+    }
+    if (action === 'list') {
+      return this.toParsed('tools list', [parts[1] || '', parts[2] || '']);
+    }
+    return this.toParsed('help', []);
+  }
+
+  parseMcp(parts: string[]): ParsedCommand {
+    const action = (parts[0] || 'status').toLowerCase();
+    if (action === 'status') {
+      return this.toParsed('mcp status', []);
+    }
+    if (action === 'add') {
+      return this.toParsed('mcp add', [parts[1] || '', parts.slice(2).join(' ')]);
+    }
+    if (action === 'connect') {
+      return this.toParsed('mcp connect', [parts[1] || '']);
+    }
+    if (action === 'disconnect') {
+      return this.toParsed('mcp disconnect', [parts[1] || '']);
+    }
+    return this.toParsed('help', []);
+  }
+
+  parseSkills(parts: string[]): ParsedCommand {
+    const action = (parts[0] || 'list').toLowerCase();
+    if (action === 'list') {
+      return this.toParsed('skills list', []);
+    }
+    return this.toParsed('help', []);
+  }
+
+  parseOpencode(parts: string[]): ParsedCommand {
+    const action = (parts[0] || 'status').toLowerCase();
+    if (action === 'status') {
+      return this.toParsed('opencode status', []);
+    }
+    if (action === 'providers') {
+      return this.toParsed('opencode providers', []);
+    }
+    if (action === 'commands') {
+      return this.toParsed('opencode commands', []);
+    }
+    if (action === 'diagnostics') {
+      return this.toParsed('opencode diagnostics', []);
+    }
+    return this.toParsed('help', []);
+  }
+
   extractPhone(tokens: string[]): string {
     for (const token of tokens) {
       const normalized = config.normalizePhone(token);
@@ -283,6 +376,20 @@ export class CommandRouter {
       'output runs': this.handleOutputRuns.bind(this),
       diff: this.handleDiff.bind(this),
       summarize: this.handleSummarize.bind(this),
+      'model status': this.handleModelStatus.bind(this),
+      'model list': this.handleModelList.bind(this),
+      'model set': this.handleModelSet.bind(this),
+      'tools ids': this.handleToolsIds.bind(this),
+      'tools list': this.handleToolsList.bind(this),
+      'mcp status': this.handleMcpStatus.bind(this),
+      'mcp add': this.handleMcpAdd.bind(this),
+      'mcp connect': this.handleMcpConnect.bind(this),
+      'mcp disconnect': this.handleMcpDisconnect.bind(this),
+      'skills list': this.handleSkillsList.bind(this),
+      'opencode status': this.handleOpencodeStatus.bind(this),
+      'opencode providers': this.handleOpencodeProviders.bind(this),
+      'opencode commands': this.handleOpencodeCommands.bind(this),
+      'opencode diagnostics': this.handleOpencodeDiagnostics.bind(this),
       abort: this.handleAbort.bind(this),
       confirm: this.handleConfirm.bind(this),
       'users list': this.handleUsersList.bind(this),
@@ -393,6 +500,62 @@ export class CommandRouter {
 
   async handleAbort() {
     return { type: 'abort' };
+  }
+
+  async handleModelStatus() {
+    return { type: 'model.status' };
+  }
+
+  async handleModelList() {
+    return { type: 'model.list' };
+  }
+
+  async handleModelSet(args: string[]) {
+    return { type: 'model.set', providerId: args[0] || '', modelId: args[1] || '' };
+  }
+
+  async handleToolsIds() {
+    return { type: 'tools.ids' };
+  }
+
+  async handleToolsList(args: string[]) {
+    return { type: 'tools.list', providerId: args[0] || '', modelId: args[1] || '' };
+  }
+
+  async handleMcpStatus() {
+    return { type: 'mcp.status' };
+  }
+
+  async handleMcpAdd(args: string[]) {
+    return { type: 'mcp.add', name: args[0] || '', command: args[1] || '' };
+  }
+
+  async handleMcpConnect(args: string[]) {
+    return { type: 'mcp.connect', server: args[0] || '' };
+  }
+
+  async handleMcpDisconnect(args: string[]) {
+    return { type: 'mcp.disconnect', server: args[0] || '' };
+  }
+
+  async handleSkillsList() {
+    return { type: 'skills.list' };
+  }
+
+  async handleOpencodeStatus() {
+    return { type: 'opencode.status' };
+  }
+
+  async handleOpencodeProviders() {
+    return { type: 'opencode.providers' };
+  }
+
+  async handleOpencodeCommands() {
+    return { type: 'opencode.commands' };
+  }
+
+  async handleOpencodeDiagnostics() {
+    return { type: 'opencode.diagnostics' };
   }
 
   async handleConfirm(args: string[], session: SessionState) {
@@ -555,6 +718,20 @@ Control commands (slash):
 • @oc /session abort <id>
 • @oc /diff [sessionId]
 • @oc /summarize [sessionId]
+• @oc /model status
+• @oc /model list
+• @oc /model set <providerId> <modelId>
+• @oc /tools ids
+• @oc /tools list [providerId] [modelId]
+• @oc /mcp status
+• @oc /mcp add <name> <command>
+• @oc /mcp connect <server>
+• @oc /mcp disconnect <server>
+• @oc /skills list
+• @oc /opencode status
+• @oc /opencode providers
+• @oc /opencode commands
+• @oc /opencode diagnostics
 • @oc /run <command>
 • @oc /shell <command>
 • @oc /abort

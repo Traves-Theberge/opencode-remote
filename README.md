@@ -37,11 +37,28 @@ Request flow:
 ## Requirements
 
 - Node.js `>= 20`
+- Bun `>= 1.3` (for TUI app)
 - Local OpenCode server (`http://localhost:4096` by default)
 - WhatsApp account for pairing (if WhatsApp transport enabled)
 - Telegram bot token (if Telegram transport enabled)
 
 ## Quick Start
+
+Install from curl (fresh machine):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Traves-Theberge/opencode-remote/master/scripts/install.sh | bash
+```
+
+Then:
+
+```bash
+cd ~/opencode-remote
+npm run cli -- setup
+npm start
+```
+
+Manual local setup:
 
 Install and set owner:
 
@@ -64,6 +81,47 @@ npm start
 ```
 
 Then pair WhatsApp from QR (if enabled), and message your Telegram bot.
+
+## Monorepo Layout
+
+- `apps/daemon/` - workspace-native daemon entrypoint
+- `src/` - core daemon modules (router/executor/adapter/transports)
+- `apps/cli/` - onboarding and maintenance CLI
+- `apps/tui/` - visual operator TUI (OpenTUI)
+- `packages/bridge/` - shared management bridge for config/db/log operations
+
+## Visual Operations (TUI)
+
+Run:
+
+```bash
+npm run tui
+```
+
+Current TUI includes:
+
+- runtime summary (owner, transport mode, db counters)
+- flow visualizer for message stages from recent audit events
+- transition tracking (`incoming -> executed`, `incoming -> blocked`, etc.)
+- latest timeline for recent message/command events
+- pane-based navigation (Overview, Flow, Tasks, Output)
+- keyboard task execution and output/timeline paging
+
+## Onboarding Flows
+
+CLI wizard:
+
+```bash
+npm run cli -- setup
+```
+
+TUI manager:
+
+```bash
+npm run tui
+```
+
+The TUI currently provides an onboarding state view and management dashboard shell, while the CLI handles interactive setup and maintenance commands.
 
 ## Telegram Delivery Modes
 
@@ -112,6 +170,25 @@ Common commands:
 - `@oc /runs`
 - `@oc /get <runId>`
 
+Advanced control-plane namespaces:
+
+- `@oc /model status`
+- `@oc /model list`
+- `@oc /model set <providerId> <modelId>`
+- `@oc /tools ids`
+- `@oc /tools list [providerId] [modelId]`
+- `@oc /mcp status`
+- `@oc /mcp add <name> <command>`
+- `@oc /mcp connect <server>`
+- `@oc /mcp disconnect <server>`
+- `@oc /skills list`
+- `@oc /opencode status`
+- `@oc /opencode providers`
+- `@oc /opencode commands`
+- `@oc /opencode diagnostics`
+
+Permission/safety policy matrix is documented in `docs/COMMAND_MODEL.md`.
+
 Admin commands:
 
 - `@oc /users list`
@@ -131,10 +208,17 @@ Admin commands:
 - Failed inbound payloads: `dead_letters` table
 - Message idempotency: composite key in `messages` table
 
+Persistence safety:
+
+- local database files are ignored by git (`data/`, `*.db`, `*.sqlite*`)
+- repo stays code-only; operators bootstrap runtime state locally
+
 ## Scripts
 
 - `npm start`
 - `npm run dev`
+- `npm run cli -- <command>`
+- `npm run tui`
 - `npm run lint`
 - `npm run typecheck`
 - `npm test`
@@ -155,4 +239,6 @@ npm run verify
 - `docs/DATABASE_SCHEMA.md`
 - `docs/ERD.md`
 - `docs/OPERATIONS.md`
+- `docs/ONBOARDING.md`
+- `docs/plans/2026-03-01-control-plane-parity-phase2-plan.md`
 - `CHANGELOG.md`

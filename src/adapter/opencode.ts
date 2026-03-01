@@ -436,6 +436,125 @@ export class OpenCodeAdapter {
     };
   }
 
+  async getModelStatus() {
+    const cfg = await this.client.config.get();
+    const providers = await this.client.config.providers();
+    return {
+      config: cfg?.data || null,
+      providers: providers?.data || null,
+    };
+  }
+
+  async listProviders() {
+    const result = await this.client.provider.list();
+    return result?.data || [];
+  }
+
+  async setModel(providerId: string, modelId: string) {
+    if (!providerId || !modelId) {
+      throw new Error('Missing providerId or modelId');
+    }
+
+    const current = await this.client.config.get();
+    const body = {
+      ...(current?.data || {}),
+      model: {
+        providerID: providerId,
+        modelID: modelId,
+      },
+    };
+
+    const result = await this.client.config.update({
+      body: body as never,
+    });
+
+    return result?.data || null;
+  }
+
+  async listToolIds() {
+    const result = await this.client.tool.ids();
+    return result?.data || [];
+  }
+
+  async listTools(providerId: string, modelId: string) {
+    const resolved = providerId && modelId ? { providerID: providerId, modelID: modelId } : await this.getSummaryModel();
+    const result = await this.client.tool.list({
+      query: {
+        providerID: resolved.providerID,
+        modelID: resolved.modelID,
+      } as never,
+    });
+    return result?.data || [];
+  }
+
+  async getMcpStatus() {
+    const result = await this.client.mcp.status();
+    return result?.data || [];
+  }
+
+  async addMcpServer(name: string, command: string) {
+    if (!name || !command) {
+      throw new Error('Missing MCP name or command');
+    }
+    const result = await this.client.mcp.add({
+      body: {
+        name,
+        command,
+      } as never,
+    });
+    return result?.data || null;
+  }
+
+  async connectMcp(server: string) {
+    if (!server) {
+      throw new Error('Missing MCP server id/name');
+    }
+    const result = await this.client.mcp.connect({
+      path: {
+        id: server,
+      } as never,
+    });
+    return result?.data || null;
+  }
+
+  async disconnectMcp(server: string) {
+    if (!server) {
+      throw new Error('Missing MCP server id/name');
+    }
+    const result = await this.client.mcp.disconnect({
+      path: {
+        id: server,
+      } as never,
+    });
+    return result?.data || null;
+  }
+
+  async listSkills() {
+    const result = await this.client.app.agents();
+    return result?.data || [];
+  }
+
+  async listCommands() {
+    const result = await this.client.command.list();
+    return result?.data || [];
+  }
+
+  async getDiagnostics() {
+    const [pathInfo, lsp, formatter, vcs] = await Promise.all([
+      this.client.path.get().catch(() => null),
+      this.client.lsp.status().catch(() => null),
+      this.client.formatter.status().catch(() => null),
+      this.client.vcs.get().catch(() => null),
+    ]);
+
+    return {
+      path: pathInfo?.data || null,
+      lsp: lsp?.data || null,
+      formatter: formatter?.data || null,
+      vcs: vcs?.data || null,
+    };
+  }
+
   getCurrentSessionId() {
     return this.currentSessionId;
   }

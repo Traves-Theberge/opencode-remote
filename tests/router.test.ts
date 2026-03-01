@@ -157,3 +157,63 @@ test('routes telegram binding admin commands', async () => {
   const tglist = await router.parse('@oc /users tglist');
   assert.equal(tglist.command, 'users tglist');
 });
+
+test('routes model namespace commands', async () => {
+  const router = new CommandRouter(new AccessControllerStub());
+
+  const status = await router.parse('@oc /model status');
+  assert.equal(status.command, 'model status');
+
+  const list = await router.parse('@oc /model list');
+  assert.equal(list.command, 'model list');
+
+  const set = await router.parse('@oc /model set anthropic claude-3-5-sonnet');
+  assert.equal(set.command, 'model set');
+  assert.equal(set.args[0], 'anthropic');
+  assert.equal(set.args[1], 'claude-3-5-sonnet');
+  assert.equal(set.tier, 'dangerous');
+});
+
+test('routes tools and mcp namespace commands', async () => {
+  const router = new CommandRouter(new AccessControllerStub());
+
+  const toolsIds = await router.parse('@oc /tools ids');
+  assert.equal(toolsIds.command, 'tools ids');
+
+  const toolsList = await router.parse('@oc /tools list anthropic claude-3-5-sonnet');
+  assert.equal(toolsList.command, 'tools list');
+  assert.equal(toolsList.args[0], 'anthropic');
+  assert.equal(toolsList.args[1], 'claude-3-5-sonnet');
+
+  const mcpStatus = await router.parse('@oc /mcp status');
+  assert.equal(mcpStatus.command, 'mcp status');
+
+  const mcpAdd = await router.parse('@oc /mcp add docs npx @modelcontextprotocol/server-filesystem');
+  assert.equal(mcpAdd.command, 'mcp add');
+  assert.equal(mcpAdd.tier, 'dangerous');
+
+  const mcpConnect = await router.parse('@oc /mcp connect docs');
+  assert.equal(mcpConnect.command, 'mcp connect');
+
+  const mcpDisconnect = await router.parse('@oc /mcp disconnect docs');
+  assert.equal(mcpDisconnect.command, 'mcp disconnect');
+});
+
+test('routes skills and opencode diagnostic commands', async () => {
+  const router = new CommandRouter(new AccessControllerStub());
+
+  const skills = await router.parse('@oc /skills list');
+  assert.equal(skills.command, 'skills list');
+
+  const status = await router.parse('@oc /opencode status');
+  assert.equal(status.command, 'opencode status');
+
+  const providers = await router.parse('@oc /opencode providers');
+  assert.equal(providers.command, 'opencode providers');
+
+  const commands = await router.parse('@oc /opencode commands');
+  assert.equal(commands.command, 'opencode commands');
+
+  const diagnostics = await router.parse('@oc /opencode diagnostics');
+  assert.equal(diagnostics.command, 'opencode diagnostics');
+});
