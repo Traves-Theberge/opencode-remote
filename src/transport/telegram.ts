@@ -294,7 +294,6 @@ export class TelegramTransport {
         this.lastPollingRecoveryError = String(error instanceof Error ? error.message : error);
         if (retryAfterSec > 0) {
           this.recoveryBlockedUntil = Date.now() + waitMs;
-          this.pollingPausedUntil = Math.max(this.pollingPausedUntil, this.recoveryBlockedUntil);
         }
         logger.warn({ err: error, attempt, waitMs }, 'Telegram close failed during polling session prep');
         if (retryAfterSec > 0) {
@@ -324,10 +323,6 @@ export class TelegramTransport {
    */
   async pollOnce() {
     if (!this.running) {
-      return;
-    }
-
-    if (Date.now() < this.recoveryBlockedUntil) {
       return;
     }
 
@@ -444,24 +439,21 @@ export class TelegramTransport {
     callback: NonNullable<TelegramUpdate['callback_query']>,
     updateId?: number,
   ) {
-    const callbackId = callback?.id;
+    const callbackId = String(callback?.id || '');
     const data = String(callback?.data || '');
     const userId = String(callback?.from?.id || '');
     const username = String(callback?.from?.username || '');
     const chatId = String(callback?.message?.chat?.id || '');
 
     if (!this.isAllowedChatType(callback?.message?.chat?.type)) {
-      await this.api('answerCallbackQuery', {
-        callback_query_id: callbackId,
+      await this.answerCallbackSafe(callbackId, {
         text: 'Group chats are disabled for this bot',
         show_alert: false,
       });
       return;
     }
 
-    await this.api('answerCallbackQuery', {
-      callback_query_id: callbackId,
-    });
+    await this.answerCallbackSafe(callbackId);
 
     const command = this.callbackToCommand(data);
     if (!command) {
@@ -482,6 +474,29 @@ export class TelegramTransport {
 
     if (response) {
       await this.send(chatId, response);
+    }
+  }
+
+  async answerCallbackSafe(
+    callbackId: string,
+    options: { text?: string; show_alert?: boolean } = {},
+  ): Promise<void> {
+    if (!callbackId) {
+      return;
+    }
+
+    try {
+      await this.api('answerCallbackQuery', {
+        callback_query_id: callbackId,
+        ...options,
+      });
+    } catch (error) {
+      const message = String(error instanceof Error ? error.message : error);
+      if (/query is too old|query ID is invalid/i.test(message)) {
+        logger.debug({ callbackId }, 'Ignoring stale Telegram callback acknowledgement error');
+        return;
+      }
+      throw error;
     }
   }
 
@@ -553,13 +568,13 @@ export class TelegramTransport {
       return;
     }
 
-    const escaped = this.escapeHtml(String(text || ''));
-    const chunks = this.chunkMessage(escaped, 4096);
+    const rendered = this.renderMarkdownV2(String(text || ''));
+    const chunks = this.chunkMessage(rendered, 4096);
     for (const chunk of chunks) {
       await this.api('sendMessage', {
         chat_id: chatId,
         text: chunk,
-        parse_mode: 'HTML',
+        parse_mode: 'MarkdownV2',
         reply_markup: DEFAULT_KEYBOARD,
       });
     }
@@ -588,11 +603,53 @@ export class TelegramTransport {
     return chunks;
   }
 
-  escapeHtml(text: string): string {
-    return String(text || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+  renderMarkdownV2(text: string): string {
+    const lines = String(text || '').split('\n');
+
+    return lines
+      .map((line) => {
+        const inlineCodes: string[] = [];
+        const withPlaceholders = line.replace(/`([^`\n]+)`/g, (_whole, code: string) => {
+          const id = inlineCodes.length;
+          inlineCodes.push(code);
+          return `@@CODE${id}@@`;
+        });
+
+        let escaped = this.escapeMarkdownV2Text(withPlaceholders);
+        escaped = escaped.replace(/@@CODE(\d+)@@/g, (_whole, idxText: string) => {
+          const idx = Number(idxText);
+          const code = inlineCodes[idx] || '';
+          return `\`${this.escapeMarkdownV2Code(code)}\``;
+        });
+
+        if (this.shouldBoldLine(line)) {
+          return `*${escaped}*`;
+        }
+
+        return escaped;
+      })
+      .join('\n');
+  }
+
+  shouldBoldLine(line: string): boolean {
+    const trimmed = String(line || '').trim();
+    if (!trimmed) {
+      return false;
+    }
+
+    if (/^🟢 OpenCode Remote · .+ · \d{2}:\d{2}$/.test(trimmed)) {
+      return true;
+    }
+
+    return ['Next', 'Try', 'Reply with', 'Recent run IDs'].includes(trimmed);
+  }
+
+  escapeMarkdownV2Text(text: string): string {
+    return String(text || '').replace(/([_\*\[\]\(\)~`>#+\-=|{}.!\\])/g, '\\$1');
+  }
+
+  escapeMarkdownV2Code(text: string): string {
+    return String(text || '').replace(/([`\\])/g, '\\$1');
   }
 
   async moveToDeadLetter(update: TelegramUpdate, error: unknown, attempts: number) {
@@ -712,7 +769,6 @@ export class TelegramTransport {
           this.lastPollingRecoveryError = String(error instanceof Error ? error.message : error);
           if (retryAfterSec > 0) {
             this.recoveryBlockedUntil = Date.now() + waitMs;
-            this.pollingPausedUntil = Math.max(this.pollingPausedUntil, this.recoveryBlockedUntil);
           }
           logger.warn(
             { err: error, attempt, waitMs },

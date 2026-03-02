@@ -139,12 +139,24 @@ test('normalizes plain telegram shorthand to slash commands', () => {
   assert.equal(transport.normalizeBody('help'), '/help');
 });
 
-test('escapes html entities for telegram html parse mode', () => {
+test('renders markdownv2 text while preserving inline code', () => {
   const transport = new TelegramTransportStub(async () => null);
   assert.equal(
-    transport.escapeHtml('Run: <runId> & <status>'),
-    'Run: &lt;runId&gt; &amp; &lt;status&gt;',
+    transport.renderMarkdownV2('Run: `ABC123` (done) [ok]'),
+    'Run: `ABC123` \\(done\\) \\[ok\\]',
   );
+});
+
+test('bolds formatter section lines for styled telegram output', () => {
+  const transport = new TelegramTransportStub(async () => null);
+  const rendered = transport.renderMarkdownV2(
+    '🟢 OpenCode Remote · Status · 10:55\n\nNext\n1) `continue with this task`',
+  );
+
+  assert.ok(rendered.includes('*🟢 OpenCode Remote · Status · 10:55*'));
+  assert.ok(rendered.includes('*Next*'));
+  assert.ok(rendered.includes('1\\)'));
+  assert.ok(rendered.includes('`continue with this task`'));
 });
 
 test('polling loop does not overlap concurrent getUpdates requests', async () => {

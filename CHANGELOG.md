@@ -135,7 +135,9 @@ All notable changes to this project are documented in this file.
 - Telegram polling conflict owner alerts are now cooldown-limited to reduce repeated notification spam.
 - Telegram polling startup now prepares session state (`deleteWebhook` + `close` with retry-after-aware cooldown handling).
 - Polling loop now enforces single in-flight cycle to avoid overlap and improve conflict stability.
-- Telegram outbound message send now escapes HTML entities before `parse_mode=HTML` delivery to prevent `can't parse entities` send failures.
+- Telegram outbound formatting now uses `parse_mode=MarkdownV2` with Telegram-compliant escaping.
+- Telegram output renderer now preserves inline code blocks and styles key section lines (header, Next/Try/Reply sections).
+- Telegram callback acknowledgement now safely ignores stale callback query errors (`query is too old` / `query ID is invalid`).
 - Runtime `/status` output now includes transport health and polling conflict recovery timing.
 - SQLite schema now includes transport lease support (`transport_leases`) to protect polling ownership on shared DB deployments.
 - Webhook mode now fails fast unless `telegram.webhookSecret` is configured.
