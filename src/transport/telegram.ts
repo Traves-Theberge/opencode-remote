@@ -63,23 +63,45 @@ const DEFAULT_KEYBOARD = {
 export class TelegramTransport {
   onMessage: (event: TelegramInboundEvent) => Promise<string | null>;
   onDeadLetter: ((event: TelegramDeadLetter) => Promise<void>) | null;
+  onPollingConflict:
+    | ((event: { conflictCount: number; retryInMs: number; pausedUntil: number; error: string }) => void)
+    | null;
+  onPollingRecovered: ((event: { recoveredAt: number }) => void) | null;
   running: boolean;
   offset: number;
   poller: NodeJS.Timeout | null;
   webhookServer: http.Server | null;
+  pollingPausedUntil: number;
+  pollingConflictCount: number;
 
   constructor(
     onMessage: (event: TelegramInboundEvent) => Promise<string | null>,
-    options: { onDeadLetter?: (event: TelegramDeadLetter) => Promise<void> } = {},
+    options: {
+      onDeadLetter?: (event: TelegramDeadLetter) => Promise<void>;
+      onPollingConflict?: (event: {
+        conflictCount: number;
+        retryInMs: number;
+        pausedUntil: number;
+        error: string;
+      }) => void;
+      onPollingRecovered?: (event: { recoveredAt: number }) => void;
+    } = {},
   ) {
     this.onMessage = onMessage;
     this.onDeadLetter = options.onDeadLetter || null;
+    this.onPollingConflict = options.onPollingConflict || null;
+    this.onPollingRecovered = options.onPollingRecovered || null;
     this.running = false;
     this.offset = 0;
     this.poller = null;
     this.webhookServer = null;
+    this.pollingPausedUntil = 0;
+    this.pollingConflictCount = 0;
   }
 
+  /**
+   * Start Telegram transport in webhook or polling mode.
+   */
   async start() {
     if (!config.get('telegram.enabled')) {
       logger.info('Telegram transport disabled by config');
@@ -130,11 +152,13 @@ export class TelegramTransport {
   async startWebhook() {
     const webhookUrl = String(config.get('telegram.webhookUrl') || '');
     if (!webhookUrl) {
-      logger.warn('telegram.webhookEnabled=true but webhookUrl is empty; skipping webhook mode');
-      return;
+      throw new Error('telegram.webhookEnabled=true requires telegram.webhookUrl');
     }
 
     const secret = String(config.get('telegram.webhookSecret') || '');
+    if (!secret) {
+      throw new Error('telegram.webhookEnabled=true requires telegram.webhookSecret');
+    }
     const host = String(config.get('telegram.webhookHost') || '0.0.0.0');
     const port = Number(config.get('telegram.webhookPort')) || 4097;
     const path = String(config.get('telegram.webhookPath') || '/telegram/webhook');
@@ -211,17 +235,38 @@ export class TelegramTransport {
     });
   }
 
+  /**
+   * Single polling iteration with conflict-aware backoff handling.
+   */
   async pollOnce() {
     if (!this.running) {
       return;
     }
 
+    if (Date.now() < this.pollingPausedUntil) {
+      return;
+    }
+
     const timeout = Number(config.get('telegram.pollingTimeoutSec')) || 30;
-    const response = await this.api('getUpdates', {
-      offset: this.offset,
-      timeout,
-      allowed_updates: ['message', 'callback_query'],
-    });
+    let response: { result?: TelegramUpdate[] };
+    try {
+      response = await this.api('getUpdates', {
+        offset: this.offset,
+        timeout,
+        allowed_updates: ['message', 'callback_query'],
+      });
+      if (this.pollingConflictCount > 0 && this.onPollingRecovered) {
+        this.onPollingRecovered({ recoveredAt: Date.now() });
+      }
+      this.pollingConflictCount = 0;
+      this.pollingPausedUntil = 0;
+    } catch (error) {
+      if (this.isPollingConflict(error)) {
+        this.handlePollingConflict(error);
+        return;
+      }
+      throw error;
+    }
 
     const updates = response?.result || [];
     for (const update of updates) {
@@ -348,30 +393,53 @@ export class TelegramTransport {
     }
   }
 
+  /**
+   * Normalize inbound text to canonical command/prompt input.
+   */
   normalizeBody(text: string): string {
     if (!text) {
       return '';
     }
 
     if (text.toLowerCase().startsWith('@oc')) {
-      return text;
+      return text.replace(/^@oc\s*/i, '').trimStart();
     }
 
     if (text.startsWith('/')) {
-      return `@oc ${text.replace('/session_list', '/session list').replace('/session_new', '/session new')}`;
+      return text.replace('/session_list', '/session list').replace('/session_new', '/session new');
     }
 
-    return `@oc ${text}`;
+    const shorthand = this.plainTextToCommand(text);
+    if (shorthand) {
+      return shorthand;
+    }
+
+    return text;
+  }
+
+  plainTextToCommand(text: string): string | null {
+    const normalized = text.trim().toLowerCase();
+    const map: Record<string, string> = {
+      status: '/status',
+      help: '/help',
+      runs: '/runs',
+      diff: '/diff',
+      abort: '/abort',
+      sessions: '/session list',
+      'session list': '/session list',
+      pwd: '/pwd',
+    };
+    return map[normalized] || null;
   }
 
   callbackToCommand(data: string): string | null {
     const mapped: Record<string, string> = {
-      'oc:status': '@oc /status',
-      'oc:session_list': '@oc /session list',
-      'oc:diff': '@oc /diff',
-      'oc:runs': '@oc /runs',
-      'oc:help': '@oc /help',
-      'oc:abort': '@oc /abort',
+      'oc:status': '/status',
+      'oc:session_list': '/session list',
+      'oc:diff': '/diff',
+      'oc:runs': '/runs',
+      'oc:help': '/help',
+      'oc:abort': '/abort',
     };
 
     if (mapped[data]) {
@@ -381,7 +449,7 @@ export class TelegramTransport {
     const permissionMatch = /^oc:perm:([A-Za-z0-9_-]+):(once|always|reject)$/.exec(data);
     if (permissionMatch) {
       const [, permissionId, response] = permissionMatch;
-      return `@oc /permission ${permissionId} ${response}`;
+      return `/permission ${permissionId} ${response}`;
     }
 
     return null;
@@ -478,6 +546,48 @@ export class TelegramTransport {
     }
 
     return data;
+  }
+
+  isPollingConflict(error: unknown): boolean {
+    const text = String(error instanceof Error ? error.message : error).toLowerCase();
+    return text.includes('getupdates failed (409)') || text.includes('terminated by other getupdates request');
+  }
+
+  handlePollingConflict(error: unknown) {
+    this.pollingConflictCount += 1;
+    const backoffMs = Math.min(90_000, 5_000 * Math.max(1, this.pollingConflictCount));
+    this.pollingPausedUntil = Date.now() + backoffMs;
+    if (this.onPollingConflict) {
+      this.onPollingConflict({
+        conflictCount: this.pollingConflictCount,
+        retryInMs: backoffMs,
+        pausedUntil: this.pollingPausedUntil,
+        error: String(error instanceof Error ? error.message : error),
+      });
+    }
+    logger.warn(
+      {
+        err: error,
+        conflictCount: this.pollingConflictCount,
+        retryInMs: backoffMs,
+      },
+      'Telegram polling conflict detected; pausing polling',
+    );
+  }
+
+  /**
+   * Lightweight transport health snapshot used by status output.
+   */
+  getHealth() {
+    const mode = config.get('telegram.webhookEnabled') ? 'webhook' : 'polling';
+    const pausedForMs = Math.max(0, this.pollingPausedUntil - Date.now());
+    return {
+      mode,
+      running: this.running,
+      pollingConflictCount: this.pollingConflictCount,
+      pollingPausedForMs: pausedForMs,
+      state: pausedForMs > 0 ? 'degraded' : 'healthy',
+    };
   }
 
   sleep(ms: number): Promise<void> {

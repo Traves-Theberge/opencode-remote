@@ -27,3 +27,17 @@ test('rejects webhook setup without valid https url', () => {
     }, { dryRun: true });
   }, /HTTPS webhook URL/);
 });
+
+test('rejects webhook setup without webhook secret', () => {
+  const bridge = new OpsBridge();
+  assert.throws(() => {
+    bridge.applySetup({
+      ownerNumber: '+15551234567',
+      telegramEnabled: true,
+      telegramBotToken: 'token',
+      telegramMode: 'webhook',
+      telegramWebhookUrl: 'https://example.com/telegram/webhook',
+      telegramWebhookSecret: '',
+    }, { dryRun: true });
+  }, /requires a non-empty webhook secret/);
+});

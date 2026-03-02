@@ -8,19 +8,65 @@ interface IntentBase {
   [key: string]: unknown;
 }
 
+interface RuntimeStatus {
+  telegram: {
+    mode: string;
+    state: string;
+    pollingConflictCount: number;
+    pollingPausedForMs: number;
+  };
+  channels: {
+    telegramEnabled: boolean;
+    whatsappEnabled: boolean;
+  };
+  lease: {
+    ownerId: string | null;
+    expiresInMs: number;
+    ownedByCurrentInstance: boolean;
+  };
+}
+
 export class CommandExecutor {
   adapter: OpenCodeAdapter;
   access: AccessController;
   store: LocalStore;
   formatter: MessageFormatter;
+  getRuntimeStatus: () => RuntimeStatus;
 
-  constructor(opencodeAdapter: OpenCodeAdapter, accessController: AccessController, store: LocalStore) {
+  constructor(
+    opencodeAdapter: OpenCodeAdapter,
+    accessController: AccessController,
+    store: LocalStore,
+    getRuntimeStatus?: () => RuntimeStatus,
+  ) {
     this.adapter = opencodeAdapter;
     this.access = accessController;
     this.store = store;
     this.formatter = new MessageFormatter();
+    this.getRuntimeStatus =
+      getRuntimeStatus ||
+      (() => ({
+        telegram: {
+          mode: 'polling',
+          state: 'unknown',
+          pollingConflictCount: 0,
+          pollingPausedForMs: 0,
+        },
+        channels: {
+          telegramEnabled: false,
+          whatsappEnabled: false,
+        },
+        lease: {
+          ownerId: null,
+          expiresInMs: 0,
+          ownedByCurrentInstance: false,
+        },
+      }));
   }
 
+  /**
+   * Execute routed intent against adapter, store, and access/session state.
+   */
   async execute(intent: IntentBase, session: SessionState) {
     const context = {
       sessionId: this.access.getActiveSessionId(session),
@@ -29,15 +75,23 @@ export class CommandExecutor {
 
     switch (intent.type) {
       case 'status': {
+        const runtime = this.getRuntimeStatus();
         return [
           this.formatter.header('Status'),
           '',
           '✅ OpenCode Remote is online',
           `🧵 Active session: ${context.sessionId || '(none)'}`,
           `📂 CWD: ${context.directory || '(unset)'}`,
+          `📡 Telegram: ${runtime.channels.telegramEnabled ? runtime.telegram.state : 'disabled'} (${runtime.telegram.mode})`,
+          `📱 WhatsApp: ${runtime.channels.whatsappEnabled ? 'enabled' : 'disabled'}`,
+          runtime.telegram.pollingConflictCount > 0
+            ? `⚠️ Telegram polling conflicts: ${runtime.telegram.pollingConflictCount} (retry in ${Math.ceil(runtime.telegram.pollingPausedForMs / 1000)}s)`
+            : '',
           '',
-          'Use `@oc /help` for control commands.',
-        ].join('\n');
+          'Use `/help` for control commands.',
+        ]
+          .filter(Boolean)
+          .join('\n');
       }
 
       case 'prompt': {
@@ -80,7 +134,7 @@ export class CommandExecutor {
       case 'file.write': {
         return this.formatter.formatWarning(
           'File Write',
-          'V1 does not support direct file writes yet. Use @oc /run with an editor command.',
+          'V1 does not support direct file writes yet. Use /run with an editor command.',
         );
       }
 
@@ -191,7 +245,7 @@ export class CommandExecutor {
           `📦 Found ${projects.length} project(s)`,
           ...lines,
           '',
-          'Use `@oc /project use <id>` to switch path context.',
+          'Use `/project use <id>` to switch path context.',
         ].join('\n');
       }
 
@@ -282,7 +336,7 @@ export class CommandExecutor {
         const providerId = String(intent.providerId || '');
         const modelId = String(intent.modelId || '');
         if (!providerId || !modelId) {
-          return this.formatter.formatError('Model', 'Usage: @oc /model set <providerId> <modelId>');
+          return this.formatter.formatError('Model', 'Usage: /model set <providerId> <modelId>');
         }
         await this.adapter.setModel(providerId, modelId);
         return this.formatter.formatSuccess('Model', `Updated active model to ${providerId}/${modelId}`);
@@ -309,7 +363,7 @@ export class CommandExecutor {
         const name = String(intent.name || '');
         const command = String(intent.command || '');
         if (!name || !command) {
-          return this.formatter.formatError('MCP', 'Usage: @oc /mcp add <name> <command>');
+          return this.formatter.formatError('MCP', 'Usage: /mcp add <name> <command>');
         }
         await this.adapter.addMcpServer(name, command);
         return this.formatter.formatSuccess('MCP', `Added MCP server ${name}`);
@@ -318,7 +372,7 @@ export class CommandExecutor {
       case 'mcp.connect': {
         const server = String(intent.server || '');
         if (!server) {
-          return this.formatter.formatError('MCP', 'Usage: @oc /mcp connect <server>');
+          return this.formatter.formatError('MCP', 'Usage: /mcp connect <server>');
         }
         await this.adapter.connectMcp(server);
         return this.formatter.formatSuccess('MCP', `Connected MCP server ${server}`);
@@ -327,7 +381,7 @@ export class CommandExecutor {
       case 'mcp.disconnect': {
         const server = String(intent.server || '');
         if (!server) {
-          return this.formatter.formatError('MCP', 'Usage: @oc /mcp disconnect <server>');
+          return this.formatter.formatError('MCP', 'Usage: /mcp disconnect <server>');
         }
         await this.adapter.disconnectMcp(server);
         return this.formatter.formatSuccess('MCP', `Disconnected MCP server ${server}`);
@@ -355,7 +409,11 @@ export class CommandExecutor {
 
       case 'opencode.diagnostics': {
         const diagnostics = await this.adapter.getDiagnostics();
-        return this.formatter.formatSuccess('OpenCode Diagnostics', this.pretty(diagnostics));
+        const runtime = this.getRuntimeStatus();
+        return this.formatter.formatSuccess(
+          'OpenCode Diagnostics',
+          this.pretty({ diagnostics, runtime }),
+        );
       }
 
       default:
@@ -363,6 +421,9 @@ export class CommandExecutor {
     }
   }
 
+  /**
+   * Render compact JSON block for advanced diagnostics responses.
+   */
   pretty(value: unknown): string {
     if (typeof value === 'string') {
       return value;

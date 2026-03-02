@@ -2,13 +2,15 @@
 
 ## Alias
 
-- WhatsApp: only messages beginning with `@oc` are processed.
-- Telegram: plain text is normalized to `@oc <text>` and slash aliases are normalized to `@oc /...`.
+- Prefix is optional.
+- `@oc ...` remains backward-compatible but is treated as a legacy alias.
+- Slash commands (`/...`) are parsed directly.
+- Plain text is treated as prompt input.
 
 ## Routing Rules
 
-1. `@oc <text>` (no slash): pass-through prompt to OpenCode.
-2. `@oc /<command>`: static control-plane command.
+1. `<text>` (no slash): pass-through prompt to OpenCode.
+2. `/<command>`: static control-plane command.
 
 This separation keeps natural-language intent handling inside OpenCode while preserving deterministic app controls.
 
@@ -42,7 +44,7 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 |---|---|---:|---:|
 | Access admin | `/users ...`, `/lock`, `/unlock` | Yes | No |
 | Session/path/status/read | `/status`, `/session list`, `/pwd`, `/ls`, `/runs` | No | No |
-| Prompt | `@oc <text>` | No | No |
+| Prompt | `<text>` | No | No |
 | Execution | `/run`, `/shell`, `/abort`, `/session abort` | No | Yes |
 | Model | `/model status`, `/model list`, `/model set` | `set` only | `set` only |
 | Tools | `/tools ids`, `/tools list` | No | No |
@@ -53,7 +55,7 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 ## Deterministic vs Prompt-Driven Boundary
 
 - Deterministic control-plane commands are resolved by router/executor/adapter against explicit SDK calls.
-- Prompt pass-through (`@oc <text>`) remains available for open-ended agent work.
+- Prompt pass-through (`<text>`) remains available for open-ended agent work.
 - Unknown slash commands intentionally fall back to prompt behavior to preserve usability.
 
 ## Edge Case Handling

@@ -1,0 +1,12 @@
+services:
+  remote:
+    environment:
+      TELEGRAM_POLLING_ENABLED: "false"
+      TELEGRAM_WEBHOOK_ENABLED: "true"
+      TELEGRAM_WEBHOOK_HOST: 0.0.0.0
+      TELEGRAM_WEBHOOK_PORT: 4097
+      TELEGRAM_WEBHOOK_PATH: /telegram/webhook
+      TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+    ports:
+      - "4097:4097"

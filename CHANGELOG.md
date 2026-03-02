@@ -6,7 +6,21 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
-- Quality hardening follow-up plan: `docs/plans/2026-03-01-quality-hardening-followup-plan.md`.
+- Docker runtime support:
+  - `Dockerfile`
+  - `docker-compose.yml`
+  - `docker-compose.webhook.yml`
+  - `.dockerignore`
+  - `.env.docker.example`
+- Telegram UX + reliability overhaul plan: `docs/plans/2026-03-02-telegram-ux-reliability-overhaul-plan.md`.
+- Formatter regression test for prompt event-envelope filtering: `tests/formatter.test.ts`.
+- Storage lease coverage for transport single-instance behavior: `tests/storage.test.ts` lease test.
+- File-by-file audit checklist: `docs/plans/2026-03-02-file-audit-checklist.md`.
+- Security review register: `docs/SECURITY_REVIEW.md`.
+- Security/remediation backlog register: `TOFIX.md`.
+- Security redaction utility for audit/dead-letter storage: `src/security/redaction.ts`.
+- CLI security posture helper: `security rotate-token-check`.
+- Release notes for hardened release: `RELEASE_NOTES_v1.2.0.md`.
 - Architecture diagram set under `docs/architecture/`:
   - system/context/container/component
   - interaction sequences
@@ -101,6 +115,24 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Chat command UX now supports slash commands and natural language without requiring `@oc` prefix (legacy prefix still accepted).
+- Help output is redesigned into a concise, task-oriented menu with command descriptions.
+- Telegram input normalization now maps plain shorthand (status/help/runs/sessions/diff/abort/pwd) to slash commands.
+- Telegram polling conflict handling now applies controlled backoff with degraded-state visibility.
+- Runtime `/status` output now includes transport health and polling conflict recovery timing.
+- SQLite schema now includes transport lease support (`transport_leases`) to protect polling ownership on shared DB deployments.
+- Webhook mode now fails fast unless `telegram.webhookSecret` is configured.
+- Bridge/TUI status views now surface Telegram polling degraded state, conflict count, and retry timing.
+- App ingress now enforces global and per-sender token-bucket throttling with `ingress.throttled` audit events.
+- Startup validation now supports env-only secret mode (`security.requireEnvTokens`) and placeholder-token warnings.
+- SQLite audit and dead-letter writes now redact token/secret/bearer-like values before persistence.
+- Removed dead code: `src/audit/logger.ts` and unused `OpenCodeAdapter.server` field.
+- Package versions bumped for release alignment:
+  - root `opencode-remote` -> `1.2.0`
+  - workspaces (`daemon`, `cli`, `tui`, `bridge`) -> `0.2.0`
+- `/opencode diagnostics` now includes runtime transport and lease status snapshot.
+- Documentation updated for prefix-optional command model and webhook-first production profile.
+- TSDoc coverage expanded across runtime, transport, bridge, and CLI/TUI entry modules.
 - Root TypeScript strict mode is re-enabled with passing project and workspace checks.
 - Lint pipeline now targets TypeScript across root and workspace code:
   - `src/**/*.ts`, `tests/**/*.ts`, `apps/**/*.ts`, `packages/**/*.ts`

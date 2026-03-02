@@ -56,6 +56,12 @@ Bridge package (`packages/bridge`) is the shared control-plane API used by both 
 - maintenance tasks (`vacuum`, prune)
 - unified task execution contract (`status`, `logs`, `flow`, `deadletters`, `db.*`)
 
+Security posture check:
+
+```bash
+npm run cli -- security rotate-token-check
+```
+
 ### Flow tracking and visualizer
 
 - TUI visualizer derives stages and transitions from `audit` events.
@@ -114,11 +120,11 @@ Stop process, replace DB/auth content, restart app.
 
 Check allowlist:
 
-- `@oc /users list`
+- `/users list`
 
 Add user:
 
-- `@oc /users add +1555...`
+- `/users add +1555...`
 
 ### Duplicate message behavior
 
@@ -127,9 +133,9 @@ Message dedupe uses inbound transport message/update IDs in SQLite `messages` ta
 ### Telegram access denied for expected user
 
 - Bind Telegram identity to an allowlisted phone:
-  - `@oc /users bindtg <telegramUserId> <+number> [username]`
+  - `/users bindtg <telegramUserId> <+number> [username]`
 - List bindings:
-  - `@oc /users tglist`
+  - `/users tglist`
 
 ### Telegram delivery mode conflicts
 
@@ -137,7 +143,11 @@ Message dedupe uses inbound transport message/update IDs in SQLite `messages` ta
 - Recommended: enable exactly one of:
   - `telegram.webhookEnabled=true` (prod)
   - `telegram.pollingEnabled=true` (dev)
+- Webhook mode now requires both:
+  - `telegram.webhookUrl` (HTTPS)
+  - `telegram.webhookSecret` (non-empty)
 - Webhook payload guard: oversized payloads are rejected (HTTP 413) using `telegram.webhookMaxBodyBytes`.
+- Persistent conflicts trigger owner alerting and `telegram.polling_conflict` audit events.
 
 ### Telegram group chat policy
 
@@ -147,10 +157,10 @@ Message dedupe uses inbound transport message/update IDs in SQLite `messages` ta
 ### Advanced command policy
 
 - Mutating advanced control-plane commands are owner-only:
-  - `@oc /model set ...`
-  - `@oc /mcp add ...`
-  - `@oc /mcp connect ...`
-  - `@oc /mcp disconnect ...`
+  - `/model set ...`
+  - `/mcp add ...`
+  - `/mcp connect ...`
+  - `/mcp disconnect ...`
 - These commands also remain confirmation-gated by safety tier.
 - Owner-only denials are audited as `command.blocked` with reason `owner_only_policy`.
 
@@ -163,16 +173,16 @@ Message dedupe uses inbound transport message/update IDs in SQLite `messages` ta
 
 Use:
 
-- `@oc /session use <id>`
-- `@oc /pwd`
-- `@oc /cd <path>`
+- `/session use <id>`
+- `/pwd`
+- `/cd <path>`
 
 ## Data Retention Notes
 
 - `messages` table is continuously pruned for recent dedupe window.
 - `confirmations` table is pruned by expiration cleanup loop.
-- `runs` and `audit` currently grow over time; add retention policies if required.
-- `dead_letters` currently grows over time; add retention policies if required.
+- `runs`, `audit`, and `dead_letters` are operator-pruned with CLI/TUI maintenance tasks.
+- Audit and dead-letter payloads are redacted before storage for token/secret/bearer-like values.
 
 CLI prune examples:
 
@@ -182,7 +192,7 @@ npm run cli -- db prune runs 30
 npm run cli -- db prune dead_letters 30
 ```
 
-## Suggested Retention Policy (future)
+## Suggested Retention Policy
 
 - Keep `runs` for 30 days.
 - Keep `audit` for 90 days.

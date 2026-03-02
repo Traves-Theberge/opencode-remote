@@ -5,7 +5,7 @@ OpenCode Remote is a local-first control layer for OpenCode with dual transport 
 - WhatsApp (`whatsapp-web.js`)
 - Telegram (Bot API)
 
-It routes chat input into a deterministic command model (`@oc`) and persists control-plane state in SQLite.
+It routes chat input into a deterministic command model (slash commands + natural language) and persists control-plane state in SQLite.
 
 Implementation is TypeScript-first (`src/**/*.ts`, `tests/**/*.ts`) with strict mode enabled and zero explicit `any` usage.
 
@@ -29,7 +29,7 @@ Request flow:
 1. Transport receives message/update
 2. App builds a composite dedupe key (`channel:sender:transport_message_id`)
 3. Access controller validates allowlist/role
-4. Router parses `@oc` prompt or slash command
+4. Router parses prompt or slash command
 5. Safety engine enforces guardrails
 6. Executor calls OpenCode adapter
 7. Response returns via originating transport
@@ -44,7 +44,60 @@ Request flow:
 
 ## Quick Start
 
-Install from curl (fresh machine):
+### Local (recommended)
+
+Start OpenCode server first (required):
+
+```bash
+opencode serve --hostname 127.0.0.1 --port 4096
+```
+
+In a second terminal, install and run setup:
+
+```bash
+npm install
+npm run cli -- setup
+npm start
+```
+
+### Docker (lightweight, Telegram-first)
+
+The Docker image is optimized for lightweight operation and disables WhatsApp by default.
+
+1) Start OpenCode server on the host:
+
+```bash
+opencode serve --hostname 127.0.0.1 --port 4096
+```
+
+2) Configure docker env:
+
+```bash
+cp .env.docker.example .env
+```
+
+3) Edit `.env` with your owner number and Telegram bot token.
+
+4) Start:
+
+```bash
+docker compose up --build -d
+docker compose logs -f remote
+```
+
+Webhook-first production profile:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.webhook.yml up -d --build
+```
+
+Token hygiene:
+
+- If a token is exposed, rotate it in `@BotFather` and update `.env`.
+- Polling with one bot token supports one active consumer.
+- Run posture check: `npm run cli -- security rotate-token-check`
+
+Install from curl (fresh local machine):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Traves-Theberge/opencode-remote/master/scripts/install.sh | bash
@@ -81,6 +134,28 @@ npm start
 ```
 
 Then pair WhatsApp from QR (if enabled), and message your Telegram bot.
+
+## Environment Overrides
+
+Config values can be overridden with environment variables using uppercase key names.
+
+Examples:
+
+```bash
+OPENCODE_SERVER_URL=http://127.0.0.1:4096
+WHATSAPP_ENABLED=false
+TELEGRAM_ENABLED=true
+TELEGRAM_BOT_TOKEN=replace-with-real-token
+TELEGRAM_OWNER_USER_ID=123456789
+SECURITY_OWNER_NUMBER=+15551234567
+STORAGE_DB_PATH=./data/opencode-remote.db
+```
+
+Notes:
+
+- `TELEGRAM_OWNER_USER_ID` auto-binds owner access on startup.
+- Telegram polling supports one active consumer per bot token. Use a single running instance for a token.
+- Set `SECURITY_REQUIRE_ENV_TOKENS=true` to force env-only secret loading and reject persisted plaintext token config.
 
 ## Monorepo Layout
 
@@ -149,62 +224,68 @@ npx conf set telegram.webhookSecret "<random-secret>"
 
 If both are enabled, webhook mode takes precedence and polling is skipped with a warning.
 
+When polling is used, OpenCode Remote reports polling conflict backoff in `/status` to make collisions visible.
+
 ## Security Defaults
 
 - Telegram group chats blocked by default (`telegram.allowGroupChats=false`)
 - Telegram retry controls are transport-specific:
   - `telegram.messageMaxRetries`
   - `telegram.messageRetryDelayMs`
+- Ingress rate limiting enabled with token-bucket controls:
+  - `security.ingressPerSenderPerMinute`
+  - `security.ingressGlobalPerMinute`
+  - `security.ingressBurst`
 - Dangerous commands require explicit confirmation
 
 ## Command Model
 
-- `@oc <text>`: pass-through prompt
-- `@oc /<command>`: control-plane command
+- `<text>`: pass-through prompt
+- `/<command>`: control-plane command
 
 Telegram normalization:
 
-- Plain text is normalized to `@oc <text>`
-- Supported Telegram slash aliases are normalized to shared `@oc` commands
+- Plain text shorthand is normalized to slash commands where available (`status`, `help`, `runs`, `sessions`, ...)
+- Other plain text is treated as prompt input
 
 Common commands:
 
-- `@oc /status`
-- `@oc /session list`
-- `@oc /run <command>`
-- `@oc /shell <command>`
-- `@oc /runs`
-- `@oc /get <runId>`
+- `/status`
+- `/session list`
+- `/run <command>`
+- `/shell <command>`
+- `/runs`
+- `/get <runId>`
 
 Advanced control-plane namespaces:
 
-- `@oc /model status`
-- `@oc /model list`
-- `@oc /model set <providerId> <modelId>`
-- `@oc /tools ids`
-- `@oc /tools list [providerId] [modelId]`
-- `@oc /mcp status`
-- `@oc /mcp add <name> <command>`
-- `@oc /mcp connect <server>`
-- `@oc /mcp disconnect <server>`
-- `@oc /skills list`
-- `@oc /opencode status`
-- `@oc /opencode providers`
-- `@oc /opencode commands`
-- `@oc /opencode diagnostics`
+- `/model status`
+- `/model list`
+- `/model set <providerId> <modelId>`
+- `/tools ids`
+- `/tools list [providerId] [modelId]`
+- `/mcp status`
+- `/mcp add <name> <command>`
+- `/mcp connect <server>`
+- `/mcp disconnect <server>`
+- `/skills list`
+- `/opencode status`
+- `/opencode providers`
+- `/opencode commands`
+- `/opencode diagnostics`
 
 Permission/safety policy matrix is documented in `docs/COMMAND_MODEL.md`.
 
 Admin commands:
 
-- `@oc /users list`
-- `@oc /users add <+number>`
-- `@oc /users remove <+number>`
-- `@oc /users bindtg <telegramUserId> <+number> [username]`
-- `@oc /users unbindtg <telegramUserId>`
-- `@oc /users tglist`
-- `@oc /lock`
-- `@oc /unlock`
+- `/users list`
+- `/users add <+number>`
+- `/users remove <+number>`
+- `/users bindtg <telegramUserId> <+number> [username]`
+- `/users unbindtg <telegramUserId>`
+- `/users tglist`
+- `/lock`
+- `/unlock`
 
 ## Data and Reliability
 
@@ -260,3 +341,4 @@ npm run verify
 - `docs/OPERATIONS.md`
 - `docs/ONBOARDING.md`
 - `CHANGELOG.md`
+- `TOFIX.md`

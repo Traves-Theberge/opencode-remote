@@ -9,9 +9,11 @@
 - Database ERD: `docs/ERD.md`
 - Onboarding guide (CLI + TUI): `docs/ONBOARDING.md`
 - Operations and runbook guidance: `docs/OPERATIONS.md`
+- Security review register: `docs/SECURITY_REVIEW.md`
+- Security remediation closure log: `TOFIX.md`
 - Telegram dual-channel design: `docs/plans/2026-03-01-telegram-dual-channel-design.md`
 - Release history: `CHANGELOG.md`
-- Current release notes: `RELEASE_NOTES_v1.1.0.md`
+- Current release notes: `RELEASE_NOTES_v1.2.0.md`
 
 ## Documentation Maintenance Checklist (PR)
 

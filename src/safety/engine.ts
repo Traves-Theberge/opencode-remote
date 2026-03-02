@@ -8,7 +8,13 @@ const DANGEROUS_TYPES = new Set([
   'abort',
 ]);
 
+/**
+ * Safety policy evaluator for command intents.
+ *
+ * Applies syntax guardrails and deny-list checks before command execution.
+ */
 export class SafetyEngine {
+  /** Evaluate intent safety and confirmation requirement. */
   evaluate(intent: { type?: string; command?: string } | null | undefined) {
     if (!intent || typeof intent !== 'object') {
       return { allowed: false, reason: 'Invalid command intent' };
@@ -37,6 +43,7 @@ export class SafetyEngine {
     };
   }
 
+  /** Validate command syntax against hard safety restrictions. */
   evaluateCommandSyntax(command: string) {
     const text = String(command || '').trim();
     if (!text) {
@@ -69,6 +76,7 @@ export class SafetyEngine {
     return { allowed: true, reason: null };
   }
 
+  /** Match command against configured deny-list patterns. */
   matchesDeniedCommand(command: string): string | null {
     const denyList = (config.get('commands.dangerousDenyList') as string[] | undefined) || [];
 

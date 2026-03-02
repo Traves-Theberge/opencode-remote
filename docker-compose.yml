@@ -1,0 +1,27 @@
+services:
+  remote:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opencode-remote
+    restart: unless-stopped
+    environment:
+      OPENCODE_SERVER_URL: ${OPENCODE_SERVER_URL:-http://host.docker.internal:4096}
+      STORAGE_DB_PATH: ${STORAGE_DB_PATH:-/app/data/opencode-remote.db}
+      SECURITY_OWNER_NUMBER: ${SECURITY_OWNER_NUMBER:-}
+      TELEGRAM_ENABLED: ${TELEGRAM_ENABLED:-true}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_OWNER_USER_ID: ${TELEGRAM_OWNER_USER_ID:-}
+      TELEGRAM_POLLING_ENABLED: ${TELEGRAM_POLLING_ENABLED:-true}
+      TELEGRAM_WEBHOOK_ENABLED: ${TELEGRAM_WEBHOOK_ENABLED:-false}
+      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
+      XDG_CONFIG_HOME: /app/config
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./.wwebjs_auth:/app/.wwebjs_auth
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    # For Telegram webhook mode, map webhook port too:
+    # ports:
+    #   - "4097:4097"

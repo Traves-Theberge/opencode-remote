@@ -9,6 +9,9 @@ export interface RuntimeConfig {
   telegramEnabled: boolean;
   telegramMode: 'polling' | 'webhook' | 'disabled';
   telegramWebhookUrl: string;
+  telegramPollingState: 'healthy' | 'degraded' | 'unknown';
+  telegramPollingConflictCount: number;
+  telegramPollingRetryInMs: number;
 }
 
 export interface AuditRow {
@@ -65,7 +68,14 @@ export type TaskId =
   | 'deadletters'
   | 'db.info'
   | 'db.vacuum'
-  | 'db.prune';
+  | 'db.prune'
+  | 'security.rotate-token-check';
+
+interface TelegramPollingHealth {
+  state: 'healthy' | 'degraded' | 'unknown';
+  conflictCount: number;
+  retryInMs: number;
+}
 
 export interface TaskRequest {
   id: TaskId;
@@ -85,10 +95,12 @@ export interface TaskDefinition {
   args?: string[];
 }
 
+/** Validate E.164 phone value for owner/setup workflows. */
 function isValidE164(value: string): boolean {
   return /^\+[1-9]\d{7,14}$/.test(String(value || '').trim());
 }
 
+/** Validate HTTPS URL for Telegram webhook mode. */
 function isValidHttpsUrl(value: string): boolean {
   try {
     const parsed = new URL(value);
@@ -98,6 +110,21 @@ function isValidHttpsUrl(value: string): boolean {
   }
 }
 
+function looksLikePlaceholderToken(token: string): boolean {
+  const normalized = String(token || '').trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return (
+    normalized.includes('replace-with-real-token') ||
+    normalized.includes('your-token') ||
+    normalized.includes('example') ||
+    normalized.includes('changeme') ||
+    normalized === '123456:abc'
+  );
+}
+
+/** Map audit event types to high-level flow stages. */
 function normalizeStage(eventType: string): string {
   if (eventType === 'message.incoming') {
     return 'incoming';
@@ -123,6 +150,7 @@ function normalizeStage(eventType: string): string {
   return 'other';
 }
 
+/** Build stage/transition summaries for CLI/TUI flow views. */
 export function buildFlowInsights(rows: AuditRow[], latestLimit = 18): FlowInsights {
   const sorted = [...rows].sort((a, b) => {
     if (a.created_at !== b.created_at) {
@@ -169,6 +197,11 @@ export function buildFlowInsights(rows: AuditRow[], latestLimit = 18): FlowInsig
   };
 }
 
+/**
+ * Shared operational bridge used by CLI and TUI.
+ *
+ * Provides config management, DB insights, and maintenance task execution.
+ */
 export class OpsBridge {
   private store: Conf<Record<string, unknown>>;
   private dbPathOverride: string | null;
@@ -181,6 +214,7 @@ export class OpsBridge {
     }) as unknown as Conf<Record<string, unknown>>;
   }
 
+  /** Read effective runtime config summary for operator surfaces. */
   getRuntimeConfig(): RuntimeConfig {
     const pollingEnabled = Boolean(this.store.get('telegram.pollingEnabled'));
     const webhookEnabled = Boolean(this.store.get('telegram.webhookEnabled'));
@@ -190,15 +224,21 @@ export class OpsBridge {
       telegramMode = webhookEnabled ? 'webhook' : pollingEnabled ? 'polling' : 'disabled';
     }
 
+    const polling = this.getTelegramPollingHealth();
+
     return {
       storageDbPath: String(this.store.get('storage.dbPath') || './data/opencode-remote.db'),
       ownerNumber: String(this.store.get('security.ownerNumber') || ''),
       telegramEnabled: Boolean(this.store.get('telegram.enabled')),
       telegramMode,
       telegramWebhookUrl: String(this.store.get('telegram.webhookUrl') || ''),
+      telegramPollingState: polling.state,
+      telegramPollingConflictCount: polling.conflictCount,
+      telegramPollingRetryInMs: polling.retryInMs,
     };
   }
 
+  /** Apply onboarding setup values with optional dry-run validation. */
   applySetup(
     values: {
     ownerNumber: string;
@@ -223,8 +263,12 @@ export class OpsBridge {
 
       if (values.telegramMode === 'webhook') {
         const webhookUrl = String(values.telegramWebhookUrl || '').trim();
+        const webhookSecret = String(values.telegramWebhookSecret || '').trim();
         if (!isValidHttpsUrl(webhookUrl)) {
           throw new Error('Webhook mode requires a valid HTTPS webhook URL.');
+        }
+        if (!webhookSecret) {
+          throw new Error('Webhook mode requires a non-empty webhook secret.');
         }
       }
     }
@@ -342,9 +386,15 @@ export class OpsBridge {
         description: 'Delete old rows from selected maintenance table.',
         args: ['table', 'days'],
       },
+      {
+        id: 'security.rotate-token-check',
+        label: 'Security Rotate Check',
+        description: 'Check token hygiene and rotation posture.',
+      },
     ];
   }
 
+  /** Execute named operational task for CLI/TUI consumers. */
   executeTask(request: TaskRequest): TaskResult {
     const args = request.args || {};
 
@@ -359,6 +409,7 @@ export class OpsBridge {
           `DB: ${cfg.storageDbPath}`,
           `DB exists: ${this.databaseExists() ? 'yes' : 'no'}`,
           `Telegram: ${cfg.telegramEnabled ? cfg.telegramMode : 'disabled'}`,
+          `Telegram polling: ${cfg.telegramPollingState} conflicts=${cfg.telegramPollingConflictCount} retry_in=${Math.max(0, Math.ceil(cfg.telegramPollingRetryInMs / 1000))}s`,
           `Rows: users=${stats.users} runs=${stats.runs} audit=${stats.audit} dead_letters=${stats.deadLetters}`,
         ],
       };
@@ -456,11 +507,101 @@ export class OpsBridge {
       };
     }
 
+    if (request.id === 'security.rotate-token-check') {
+      const findings = this.getSecurityRotationCheck();
+      return {
+        id: request.id,
+        title: 'Security Rotate Check',
+        lines: findings.length ? findings : ['No immediate token hygiene issues found.'],
+      };
+    }
+
     return {
       id: request.id,
       title: 'Unknown Task',
       lines: ['Task not recognized.'],
     };
+  }
+
+  getTelegramPollingHealth(): TelegramPollingHealth {
+    if (!this.databaseExists()) {
+      return { state: 'unknown', conflictCount: 0, retryInMs: 0 };
+    }
+
+    const db = new Database(this.resolveDbPath(), { readonly: true });
+    try {
+      const conflictRow = db
+        .prepare(
+          'SELECT payload_json, created_at FROM audit WHERE event_type = ? ORDER BY id DESC LIMIT 1',
+        )
+        .get('telegram.polling_conflict') as { payload_json?: string; created_at?: number } | undefined;
+
+      if (!conflictRow) {
+        return { state: 'healthy', conflictCount: 0, retryInMs: 0 };
+      }
+
+      const recoveredRow = db
+        .prepare(
+          'SELECT created_at FROM audit WHERE event_type = ? ORDER BY id DESC LIMIT 1',
+        )
+        .get('telegram.polling_recovered') as { created_at?: number } | undefined;
+
+      let conflictCount = 1;
+      let retryInMs = 0;
+      let pausedUntil = 0;
+      try {
+        const payload = JSON.parse(String(conflictRow.payload_json || '{}')) as {
+          conflictCount?: number;
+          retryInMs?: number;
+          pausedUntil?: number;
+        };
+        conflictCount = Number(payload.conflictCount || 1);
+        retryInMs = Number(payload.retryInMs || 0);
+        pausedUntil = Number(payload.pausedUntil || 0);
+      } catch {
+        // ignore malformed payloads
+      }
+
+      const recoveredAt = Number(recoveredRow?.created_at || 0);
+      const conflictAt = Number(conflictRow.created_at || 0);
+      if (recoveredAt >= conflictAt) {
+        return { state: 'healthy', conflictCount: 0, retryInMs: 0 };
+      }
+
+      const remaining = Math.max(0, pausedUntil - Date.now());
+      return {
+        state: 'degraded',
+        conflictCount,
+        retryInMs: remaining || retryInMs,
+      };
+    } finally {
+      db.close();
+    }
+  }
+
+  getSecurityRotationCheck(): string[] {
+    const findings: string[] = [];
+    const telegramEnabled = Boolean(this.store.get('telegram.enabled'));
+    const token = String(this.store.get('telegram.botToken') || '').trim();
+    const webhookEnabled = Boolean(this.store.get('telegram.webhookEnabled'));
+    const webhookSecret = String(this.store.get('telegram.webhookSecret') || '').trim();
+    const requireEnvTokens = Boolean(this.store.get('security.requireEnvTokens'));
+
+    if (telegramEnabled && !token) {
+      findings.push('FAIL: Telegram is enabled but telegram.botToken is empty.');
+    }
+    if (token && looksLikePlaceholderToken(token)) {
+      findings.push('WARN: telegram.botToken looks like a placeholder value.');
+    }
+    if (webhookEnabled && !webhookSecret) {
+      findings.push('FAIL: Webhook mode enabled without telegram.webhookSecret.');
+    }
+    if (!requireEnvTokens) {
+      findings.push('WARN: security.requireEnvTokens=false. Consider enabling env-only secret mode.');
+    }
+
+    findings.push('Action: rotate tokens, set env vars, and remove persisted plaintext secrets.');
+    return findings;
   }
 
   getDeadLetters(limit = 20): DeadLetterRow[] {

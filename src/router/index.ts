@@ -86,13 +86,18 @@ export class CommandRouter {
     this.accessController = accessController;
   }
 
+  /**
+   * Parse incoming text into command/tier/args.
+   *
+   * Prefix `@oc` is supported for backward compatibility but optional.
+   */
   async parse(rawMessage: string): Promise<ParsedCommand | null> {
     const text = rawMessage.trim();
-    if (!text.toLowerCase().startsWith('@oc')) {
+    if (!text) {
       return null;
     }
 
-    const content = this.stripAlias(text);
+    const content = text.toLowerCase().startsWith('@oc') ? this.stripAlias(text) : text;
     if (!content) {
       return this.toParsed('help', []);
     }
@@ -337,6 +342,9 @@ export class CommandRouter {
     return text.slice(alias.length).trim();
   }
 
+  /**
+   * Route parsed command through tier policy and command handlers.
+   */
   async route(parsed: ParsedCommand, session: SessionState, context: RouteContext) {
     const { command, tier, args } = parsed;
     logger.info({ command, tier, session: session.phoneNumber }, 'Routing command');
@@ -615,7 +623,7 @@ export class CommandRouter {
 
     const phone = args[0];
     if (!phone) {
-      return '❌ Missing phone number. Example: @oc /users add +15551234567';
+      return '❌ Missing phone number. Example: /users add +15551234567';
     }
 
     this.accessController.addAllowedNumber(phone, session.phoneNumber);
@@ -629,7 +637,7 @@ export class CommandRouter {
 
     const phone = args[0];
     if (!phone) {
-      return '❌ Missing phone number. Example: @oc /users remove +15551234567';
+      return '❌ Missing phone number. Example: /users remove +15551234567';
     }
 
     this.accessController.removeAllowedNumber(phone, session.phoneNumber);
@@ -646,10 +654,10 @@ export class CommandRouter {
     const username = String(args[2] || '').replace(/^@/, '');
 
     if (!telegramUserId || !/^\d+$/.test(telegramUserId)) {
-      return '❌ Missing or invalid Telegram user ID. Example: @oc /users bindtg 123456789 +15551234567 alice';
+      return '❌ Missing or invalid Telegram user ID. Example: /users bindtg 123456789 +15551234567 alice';
     }
     if (!phone) {
-      return '❌ Missing phone number. Example: @oc /users bindtg 123456789 +15551234567 alice';
+      return '❌ Missing phone number. Example: /users bindtg 123456789 +15551234567 alice';
     }
 
     try {
@@ -668,7 +676,7 @@ export class CommandRouter {
 
     const telegramUserId = String(args[0] || '').trim();
     if (!telegramUserId || !/^\d+$/.test(telegramUserId)) {
-      return '❌ Missing or invalid Telegram user ID. Example: @oc /users unbindtg 123456789';
+      return '❌ Missing or invalid Telegram user ID. Example: /users unbindtg 123456789';
     }
 
     this.accessController.unbindTelegramUser(telegramUserId, session.phoneNumber);
@@ -719,63 +727,60 @@ export class CommandRouter {
   }
 
   async handleHelp() {
-    return `📖 OpenCode Remote
+    return `📖 OpenCode Remote Help
 
-Default behavior:
-• Any @oc message is forwarded to OpenCode as-is.
-• Example: @oc review my staged changes and propose a commit message
+You can talk naturally:
+• "review my staged changes and suggest a commit message"
+• "what failed in tests and how do we fix it?"
 
-Control commands (slash):
-• @oc /status
-• @oc /pwd
-• @oc /cd <path>
-• @oc /ls [path]
-• @oc /find <pattern>
-• @oc /grep <pattern>
-• @oc /projects
-• @oc /project use <id>
-• @oc /session list
-• @oc /session status [id]
-• @oc /session use <id>
-• @oc /session new [title]
-• @oc /session abort <id>
-• @oc /diff [sessionId]
-• @oc /summarize [sessionId]
-• @oc /model status
-• @oc /model list
-• @oc /model set <providerId> <modelId>
-• @oc /tools ids
-• @oc /tools list [providerId] [modelId]
-• @oc /mcp status
-• @oc /mcp add <name> <command>
-• @oc /mcp connect <server>
-• @oc /mcp disconnect <server>
-• @oc /skills list
-• @oc /opencode status
-• @oc /opencode providers
-• @oc /opencode commands
-• @oc /opencode diagnostics
-• @oc /run <command>
-• @oc /shell <command>
-• @oc /abort
-• @oc /confirm <id>
-• @oc /permission <permissionId> <once|always|reject>
-• @oc /runs
-• @oc /get <runId>
+Quick start:
+• /status — service + transport health
+• /help — show this menu
+• /session new [title] — start a fresh session
+• /runs — list recent run IDs
+• /get <runId> — fetch full output
 
-Admin:
-• @oc /users list
-• @oc /users add <number>
-• @oc /users remove <number>
-• @oc /users bindtg <telegramUserId> <number> [username]
-• @oc /users unbindtg <telegramUserId>
-• @oc /users tglist
-• @oc /lock
-• @oc /unlock`;
+Common commands:
+• /pwd — show current working directory
+• /cd <path> — change working directory
+• /ls [path] — list files
+• /find <pattern> — find files by name
+• /grep <pattern> — search text in files
+• /projects — list known projects
+• /project use <id> — switch workspace to project
+• /session list — list sessions
+• /session status [id] — show session status
+• /session use <id> — set active session
+• /session abort <id> — abort specific session
+• /diff [sessionId] — summarize changes
+• /summarize [sessionId] — summarize session context
+
+Execution:
+• /run <command> — run command via command endpoint
+• /shell <command> — run shell command via shell endpoint
+• /abort — stop active run
+• /confirm <id> — confirm dangerous action
+• /permission <permissionId> <once|always|reject> — permission response
+
+OpenCode advanced:
+• /model status | /model list | /model set <provider> <model>
+• /tools ids | /tools list [provider] [model]
+• /mcp status | /mcp add <name> <command> | /mcp connect <server> | /mcp disconnect <server>
+• /skills list
+• /opencode status | /opencode providers | /opencode commands | /opencode diagnostics
+
+Admin (owner only):
+• /users list | /users add <number> | /users remove <number>
+• /users bindtg <telegramUserId> <number> [username]
+• /users unbindtg <telegramUserId> | /users tglist
+• /lock | /unlock
+
+Compatibility:
+• Prefixing with @oc still works, but it is optional.`;
   }
 
   formatPendingConfirmation(confirmId: string, command: string): string {
-    return `⚠️ This action (${command}) requires confirmation.\n\nConfirmation ID: \`${confirmId}\`\n\nReply with:\n@oc /confirm ${confirmId}\n\nThis confirmation expires in 5 minutes.`;
+    return `⚠️ This action (${command}) requires confirmation.\n\nConfirmation ID: \`${confirmId}\`\n\nReply with:\n/confirm ${confirmId}\n\nThis confirmation expires in 5 minutes.`;
   }
 
   formatError(message: string): string {

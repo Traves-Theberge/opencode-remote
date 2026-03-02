@@ -9,7 +9,7 @@ class TelegramTransportStub extends TelegramTransport {
   startedWebhook: boolean;
   startedPolling: boolean;
 
-  constructor(onMessage) {
+  constructor(onMessage: (event: unknown) => Promise<string | null>) {
     super(onMessage);
     this.apiCalls = [];
     this.sent = [];
@@ -56,9 +56,9 @@ function withConfig(overrides) {
 test('uses update_id for telegram callback message identity', async () => {
   const restore = withConfig({ 'telegram.allowGroupChats': true });
   try {
-    const events = [];
+    const events: Array<{ messageId?: string }> = [];
     const transport = new TelegramTransportStub(async (event) => {
-      events.push(event);
+      events.push(event as { messageId?: string });
       return 'ok';
     });
 
@@ -111,4 +111,11 @@ test('uses webhook mode when both telegram delivery modes are enabled', async ()
   } finally {
     restore();
   }
+});
+
+test('normalizes plain telegram shorthand to slash commands', () => {
+  const transport = new TelegramTransportStub(async () => null);
+  assert.equal(transport.normalizeBody('status'), '/status');
+  assert.equal(transport.normalizeBody('sessions'), '/session list');
+  assert.equal(transport.normalizeBody('help'), '/help');
 });

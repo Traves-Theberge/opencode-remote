@@ -7,24 +7,25 @@ export class MessageFormatter {
   }
 
   formatPromptResult({ sessionId, messageId, response }: { sessionId: string; messageId: string; response: string }) {
-    const body = this.truncateText(response || '(no response)', {
-      maxLines: 40,
-      maxChars: 2600,
+    const cleaned = this.cleanPromptOutput(response || '(no response)');
+    const body = this.truncateText(cleaned, {
+      maxLines: 28,
+      maxChars: 1800,
     });
 
     return [
-      this.header('Prompt'),
+      this.header('Response'),
       '',
-      '✅ Response ready',
+      '✅ Done',
       `🧵 Session: \`${sessionId}\``,
-      `✉️ Message: \`${messageId}\``,
+      `✉️ Ref: \`${messageId}\``,
       '',
       body,
       '',
       'Next',
-      '1) `@oc continue with this task`',
-      '2) `@oc /diff`',
-      '3) `@oc /summarize`',
+      '1) `continue with this task`',
+      '2) `/diff`',
+      '3) `/summarize`',
     ].join('\n');
   }
 
@@ -45,9 +46,9 @@ export class MessageFormatter {
       body,
       '',
       'Next',
-      '1) `@oc /diff`',
-      '2) `@oc /run <another command>`',
-      '3) `@oc explain this output and what to fix`',
+      '1) `/diff`',
+      '2) `/run <another command>`',
+      '3) `explain this output and what to fix`',
     ].join('\n');
   }
 
@@ -82,7 +83,7 @@ export class MessageFormatter {
       `📚 Found ${sessions.length} session(s)`,
       ...lines,
       '',
-      'Tip: use `@oc /session abort <id>` to stop one.',
+      'Tip: use `/session abort <id>` to stop one.',
     ].join('\n');
   }
 
@@ -197,8 +198,8 @@ export class MessageFormatter {
       ...preview,
       '',
       'Next',
-      '1) `@oc summarize these changes`',
-      '2) `@oc review these changes for risks`',
+      '1) `summarize these changes`',
+      '2) `review these changes for risks`',
     ].join('\n');
   }
 
@@ -211,7 +212,7 @@ export class MessageFormatter {
       return text;
     }
 
-    return [text, '', `🆔 Run: \`${runId}\``, 'Use `@oc /get <runId>` for full output.'].join('\n');
+    return [text, '', `🆔 Run: \`${runId}\``, 'Use `/get <runId>` for full output.'].join('\n');
   }
 
   formatRunLookup(item: { id: string; commandType: string; createdAt: number; raw: string } | null) {
@@ -256,7 +257,7 @@ export class MessageFormatter {
       'Recent run IDs',
       ...lines,
       '',
-      'Use `@oc /get <runId>` to fetch one.',
+      'Use `/get <runId>` to fetch one.',
     ].join('\n');
   }
 
@@ -279,9 +280,9 @@ export class MessageFormatter {
       `🏷 Type: ${type}`,
       '',
       'Reply with:',
-      `• \`@oc /allow ${id}\``,
-      `• \`@oc /permission ${id} always\``,
-      `• \`@oc /deny ${id}\``,
+      `• \`/allow ${id}\``,
+      `• \`/permission ${id} always\``,
+      `• \`/deny ${id}\``,
     ].join('\n');
   }
 
@@ -293,8 +294,8 @@ export class MessageFormatter {
       text,
       '',
       'Try',
-      '1) `@oc /status`',
-      '2) `@oc /help`',
+      '1) `/status`',
+      '2) `/help`',
     ].join('\n');
   }
 
@@ -323,5 +324,45 @@ export class MessageFormatter {
     }
 
     return clipped;
+  }
+
+  /**
+   * Remove raw SDK event-envelope lines from prompt output before chat rendering.
+   */
+  cleanPromptOutput(text: string): string {
+    const lines = String(text || '')
+      .split('\n')
+      .map((line) => line.trimEnd());
+    const filtered = lines.filter((line) => !this.isOpencodeEventLine(line));
+    const normalized = filtered.join('\n').trim();
+    return normalized || '(no response)';
+  }
+
+  /**
+   * Detect JSON-encoded OpenCode event lines that should not be shown to end users.
+   */
+  isOpencodeEventLine(line: string): boolean {
+    const trimmed = String(line || '').trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+      return false;
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed) as { type?: string };
+      if (!parsed || typeof parsed.type !== 'string') {
+        return false;
+      }
+
+      return [
+        'step-start',
+        'step-finish',
+        'reasoning',
+        'tool-call',
+        'tool-result',
+        'assistant-message',
+      ].includes(parsed.type);
+    } catch {
+      return false;
+    }
   }
 }

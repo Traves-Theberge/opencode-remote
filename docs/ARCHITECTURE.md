@@ -16,7 +16,7 @@
 1. Message arrives through transport (`src/transport/whatsapp.ts` or `src/transport/telegram.ts`).
 2. `src/index.ts` normalizes sender and applies idempotency check (`messages` table).
 3. `src/access/controller.ts` checks allowlist and user role from SQLite.
-4. `src/router/index.ts` maps `@oc` content:
+4. `src/router/index.ts` maps chat content:
    - plain text -> OpenCode prompt pass-through
    - slash command -> control intent
 5. `src/safety/engine.ts` blocks denied command patterns.

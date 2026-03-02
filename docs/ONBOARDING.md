@@ -10,6 +10,14 @@ This guide covers first-time setup using the new CLI/TUI management flows.
 
 ## Path A: CLI Wizard (Recommended)
 
+Start OpenCode server first (required):
+
+```bash
+opencode serve --hostname 127.0.0.1 --port 4096
+```
+
+Keep that terminal running, then continue below in another terminal.
+
 Bootstrap from curl:
 
 ```bash
@@ -35,6 +43,66 @@ Then start daemon:
 
 ```bash
 npm start
+```
+
+## Path A2: Docker (Lightweight)
+
+Docker mode is optimized for Telegram-first operation and keeps WhatsApp disabled by default.
+
+1) Start OpenCode server on host:
+
+```bash
+opencode serve --hostname 127.0.0.1 --port 4096
+```
+
+2) Prepare env:
+
+```bash
+cp .env.docker.example .env
+```
+
+3) Edit `.env` values:
+
+- `SECURITY_OWNER_NUMBER=+15551234567`
+- `TELEGRAM_BOT_TOKEN=<your-token>`
+- `TELEGRAM_OWNER_USER_ID=<your-telegram-user-id>`
+
+4) Start container:
+
+```bash
+docker compose up --build -d
+docker compose logs -f remote
+```
+
+Webhook-first production startup:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.webhook.yml up -d --build
+```
+
+Set these env values for webhook mode:
+
+- `TELEGRAM_WEBHOOK_URL=https://your-domain.example/telegram/webhook`
+- `TELEGRAM_WEBHOOK_SECRET=<random-secret>`
+
+Optional hardening for production:
+
+- `SECURITY_REQUIRE_ENV_TOKENS=true` (reject persisted plaintext token/secret config)
+
+Optional: run the interactive wizard inside container instead of env-only setup:
+
+```bash
+docker compose run --rm remote npm run cli -- setup
+```
+
+Important polling rule:
+
+- One Telegram bot token supports one active polling consumer. If you see `getUpdates 409`, stop all other pollers or rotate token.
+
+Token posture check:
+
+```bash
+npm run cli -- security rotate-token-check
 ```
 
 ## Path B: TUI Flow
@@ -77,3 +145,4 @@ npm run cli -- deadletters 20
 - `npm run cli -- db info`
 - `npm run cli -- db vacuum`
 - `npm run cli -- db prune dead_letters 30`
+- `npm run cli -- security rotate-token-check`

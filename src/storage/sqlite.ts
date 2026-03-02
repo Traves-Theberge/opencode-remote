@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
+import { redactString, redactUnknown } from '../security/redaction.js';
 
 interface DeadLetterRecord {
   channel: string;
@@ -50,6 +51,13 @@ interface RunRow {
   created_at: number;
 }
 
+interface TransportLeaseRow {
+  name: string;
+  owner_id: string;
+  expires_at: number;
+  updated_at: number;
+}
+
 export class LocalStore {
   dbPath: string;
   db!: Database.Database;
@@ -58,6 +66,9 @@ export class LocalStore {
     this.dbPath = dbPath;
   }
 
+  /**
+   * Open sqlite database and apply schema migrations.
+   */
   init() {
     const absolute = path.resolve(this.dbPath);
     mkdirSync(path.dirname(absolute), { recursive: true });
@@ -205,6 +216,20 @@ export class LocalStore {
 
           CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at);
           CREATE INDEX IF NOT EXISTS idx_messages_sender_created ON messages(sender, created_at DESC);
+        `,
+      },
+      {
+        version: 6,
+        name: 'transport_leases',
+        sql: `
+          CREATE TABLE IF NOT EXISTS transport_leases (
+            name TEXT PRIMARY KEY,
+            owner_id TEXT NOT NULL,
+            expires_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_transport_leases_expires ON transport_leases(expires_at);
         `,
       },
     ];
@@ -505,12 +530,16 @@ export class LocalStore {
   }
 
   appendAudit(eventType: string, payload: unknown): void {
+    const redactedPayload = redactUnknown(payload);
     this.db
       .prepare('INSERT INTO audit (event_type, payload_json, created_at) VALUES (?, ?, ?)')
-      .run(eventType, JSON.stringify(payload || {}), Date.now());
+      .run(eventType, JSON.stringify(redactedPayload || {}), Date.now());
   }
 
   appendDeadLetter({ channel, messageId, sender, body, error, attempts, payload }: DeadLetterRecord): void {
+    const redactedBody = body ? redactString(body) : null;
+    const redactedError = redactString(error);
+    const redactedPayload = redactUnknown(payload);
     this.db
       .prepare(
         `
@@ -530,10 +559,10 @@ export class LocalStore {
         channel,
         messageId || null,
         sender || null,
-        body || null,
-        error,
+        redactedBody,
+        redactedError,
         attempts,
-        JSON.stringify(payload || {}),
+        JSON.stringify(redactedPayload || {}),
         Date.now(),
       );
   }
@@ -562,6 +591,50 @@ export class LocalStore {
       `,
       )
       .run(stream, lastEventId || null, Date.now());
+  }
+
+  /**
+   * Acquire or renew a named transport lease.
+   *
+   * Lease can be renewed by same owner or stolen after expiry.
+   */
+  acquireTransportLease(name: string, ownerId: string, ttlMs = 60_000): boolean {
+    const now = Date.now();
+    const expiresAt = now + Math.max(1_000, ttlMs);
+    const result = this.db
+      .prepare(
+        `
+        INSERT INTO transport_leases (name, owner_id, expires_at, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(name) DO UPDATE SET
+          owner_id = excluded.owner_id,
+          expires_at = excluded.expires_at,
+          updated_at = excluded.updated_at
+        WHERE transport_leases.owner_id = excluded.owner_id
+           OR transport_leases.expires_at < ?
+      `,
+      )
+      .run(name, ownerId, expiresAt, now, now);
+
+    return result.changes > 0;
+  }
+
+  renewTransportLease(name: string, ownerId: string, ttlMs = 60_000): boolean {
+    return this.acquireTransportLease(name, ownerId, ttlMs);
+  }
+
+  releaseTransportLease(name: string, ownerId: string): void {
+    this.db
+      .prepare('DELETE FROM transport_leases WHERE name = ? AND owner_id = ?')
+      .run(name, ownerId);
+  }
+
+  getTransportLease(name: string): TransportLeaseRow | null {
+    return (
+      this.db.prepare('SELECT * FROM transport_leases WHERE name = ?').get(name) as
+        | TransportLeaseRow
+        | undefined
+    ) || null;
   }
 
   close(): void {

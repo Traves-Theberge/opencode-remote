@@ -22,7 +22,7 @@ sequenceDiagram
 
   TG->>APP: callback_query update
   APP->>DB: dedupe using update_id
-  APP->>ROUTER: normalize callback data to @oc command
+  APP->>ROUTER: normalize callback data to slash command
   APP->>EXEC: execute intent
   EXEC-->>APP: result
   APP->>DB: append audit + run
@@ -32,7 +32,7 @@ sequenceDiagram
 ## Key invariants
 
 - `update_id` is the callback dedupe identity.
-- Callback aliases map to the same `@oc` grammar as text input.
+- Callback aliases map to the same slash/prompt grammar as text input.
 
 ## Failure modes
 

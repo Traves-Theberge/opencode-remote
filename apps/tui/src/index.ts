@@ -1,6 +1,7 @@
 import { createCliRenderer, TextRenderable, type KeyEvent } from '@opentui/core';
 import { OpsBridge, type TaskDefinition, type TaskId } from '@opencode-remote/bridge';
 
+/** Interactive TUI control-plane dashboard for operators. */
 const bridge = new OpsBridge();
 const renderer = await createCliRenderer({ exitOnCtrlC: true });
 
@@ -86,7 +87,8 @@ function renderDashboard(): string {
   const overviewPane = [
     `Owner: ${cfg.ownerNumber || '(not configured)'}`,
     `Database: ${cfg.storageDbPath}`,
-    `Telegram: ${cfg.telegramEnabled ? cfg.telegramMode : 'disabled'}`,
+    `Telegram: ${cfg.telegramEnabled ? cfg.telegramMode : 'disabled'}${cfg.telegramPollingState === 'degraded' ? ' [DEGRADED]' : ''}`,
+    `Polling health: ${cfg.telegramPollingState} conflicts=${cfg.telegramPollingConflictCount} retry_in=${Math.max(0, Math.ceil(cfg.telegramPollingRetryInMs / 1000))}s`,
     `Rows: users=${stats.users} runs=${stats.runs} audit=${stats.audit} dead=${stats.deadLetters}`,
     '',
     onboardingNeeded
@@ -140,6 +142,7 @@ function renderDashboard(): string {
   ].join('\n');
 }
 
+/** Render onboarding wizard screen content. */
 function renderOnboarding(): string {
   const steps = [
     `1) Owner number (E.164): ${ownerInput}`,
@@ -161,6 +164,7 @@ function renderOnboarding(): string {
   ].join('\n');
 }
 
+/** Render active dashboard/onboarding view. */
 function render(): void {
   view.content = mode === 'onboarding' ? renderOnboarding() : renderDashboard();
 }
@@ -170,6 +174,7 @@ function selectedTaskId(): TaskId {
   return selected ? selected.id : 'status';
 }
 
+/** Execute selected task and cache output in output pane state. */
 function executeTaskById(id: TaskId, args?: Record<string, string | number | boolean | undefined>): void {
   const result = bridge.executeTask({ id, args });
   outputLines = result.lines;
@@ -177,6 +182,7 @@ function executeTaskById(id: TaskId, args?: Record<string, string | number | boo
   statusMessage = `${result.title} completed.`;
 }
 
+/** Reset timeline/output paging and refresh visual state. */
 function refreshDashboard(): void {
   timelinePage = 0;
   outputPage = 0;

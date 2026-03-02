@@ -57,6 +57,7 @@ test('persists and returns runs by phone', () => {
     });
 
     const row = store.getRun('RUN12345', '+15550001111');
+    assert.ok(row);
     assert.equal(row.run_id, 'RUN12345');
     assert.equal(row.command_type, 'prompt');
   } finally {
@@ -133,6 +134,40 @@ test('stores dead-letter events', () => {
   }
 });
 
+test('redacts sensitive values in audit and dead-letter payloads', () => {
+  const { store, cleanup } = withStore();
+  try {
+    const telegramToken = '123456789:abcdefghijklmnopqrstuvwxyzABCDE';
+    store.appendAudit('command.executed', {
+      token: telegramToken,
+      nested: { authorization: `Bearer ${telegramToken}` },
+    });
+    store.appendDeadLetter({
+      channel: 'telegram',
+      messageId: 'secret-1',
+      sender: '123',
+      body: `token=${telegramToken}`,
+      error: `Bearer ${telegramToken}`,
+      attempts: 1,
+      payload: { webhookSecret: telegramToken },
+    });
+
+    const audit = store.db
+      .prepare('SELECT payload_json FROM audit ORDER BY id DESC LIMIT 1')
+      .get() as { payload_json: string };
+    const dead = store.db
+      .prepare('SELECT body, error, payload_json FROM dead_letters WHERE message_id = ?')
+      .get('secret-1') as { body: string; error: string; payload_json: string };
+
+    assert.ok(!audit.payload_json.includes(telegramToken));
+    assert.ok(!dead.body.includes(telegramToken));
+    assert.ok(!dead.error.includes(telegramToken));
+    assert.ok(!dead.payload_json.includes(telegramToken));
+  } finally {
+    cleanup();
+  }
+});
+
 test('stores and resolves telegram identity mapping', () => {
   const { store, cleanup } = withStore();
   try {
@@ -151,6 +186,30 @@ test('stores and resolves telegram identity mapping', () => {
 
     store.clearTelegramIdentityByUserId('123456789');
     assert.equal(store.getPhoneByTelegramUserId('123456789'), null);
+  } finally {
+    cleanup();
+  }
+});
+
+test('acquires, renews, and releases transport lease', async () => {
+  const { store, cleanup } = withStore();
+  try {
+    const acquired = store.acquireTransportLease('telegram-polling', 'instance-a', 1000);
+    assert.equal(acquired, true);
+
+    const renewed = store.renewTransportLease('telegram-polling', 'instance-a', 1000);
+    assert.equal(renewed, true);
+
+    const blocked = store.acquireTransportLease('telegram-polling', 'instance-b', 1000);
+    assert.equal(blocked, false);
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const afterExpiry = store.acquireTransportLease('telegram-polling', 'instance-b', 1000);
+    assert.equal(afterExpiry, true);
+
+    store.releaseTransportLease('telegram-polling', 'instance-b');
+    const lease = store.getTransportLease('telegram-polling');
+    assert.equal(lease, null);
   } finally {
     cleanup();
   }

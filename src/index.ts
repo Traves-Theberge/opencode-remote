@@ -11,6 +11,7 @@ import { CommandExecutor } from './commands/executor.js';
 import { MessageFormatter } from './presentation/formatter.js';
 import { LocalStore } from './storage/sqlite.js';
 import { randomUUID } from 'node:crypto';
+import { looksLikePlaceholderToken } from './security/redaction.js';
 
 interface IncomingMessageEvent {
   channel?: 'whatsapp' | 'telegram';
@@ -53,6 +54,11 @@ type TransportLike = {
   stop: () => Promise<void>;
 };
 
+interface TokenBucket {
+  tokens: number;
+  lastRefillAt: number;
+}
+
 class App {
   store: LocalStore;
   access: AccessController;
@@ -66,6 +72,11 @@ class App {
   transports: Map<string, TransportLike>;
   stopEventStream: (() => void) | null;
   messageQueues: Map<string, Promise<unknown>>;
+  instanceId: string;
+  leaseHeartbeat: NodeJS.Timeout | null;
+  senderBuckets: Map<string, TokenBucket>;
+  globalBucket: TokenBucket;
+  telegramConflictAlertedAtCount: number;
 
   constructor() {
     this.store = new LocalStore(String(config.get('storage.dbPath') || './data/opencode-remote.db'));
@@ -74,12 +85,19 @@ class App {
     this.adapter = new OpenCodeAdapter();
     this.safety = new SafetyEngine();
     this.formatter = new MessageFormatter();
-    this.executor = new CommandExecutor(this.adapter, this.access, this.store);
+    this.executor = new CommandExecutor(
+      this.adapter,
+      this.access,
+      this.store,
+      this.getRuntimeStatus.bind(this),
+    );
     this.whatsappTransport = new WhatsAppTransport(this.handleMessage.bind(this), {
       onDeadLetter: this.handleTransportDeadLetter.bind(this),
     });
     this.telegramTransport = new TelegramTransport(this.handleMessage.bind(this), {
       onDeadLetter: this.handleTransportDeadLetter.bind(this),
+      onPollingConflict: this.handleTelegramPollingConflict.bind(this),
+      onPollingRecovered: this.handleTelegramPollingRecovered.bind(this),
     });
     this.transports = new Map<string, TransportLike>([
       ['whatsapp', this.whatsappTransport],
@@ -87,8 +105,19 @@ class App {
     ]);
     this.stopEventStream = null;
     this.messageQueues = new Map();
+    this.instanceId = randomUUID();
+    this.leaseHeartbeat = null;
+    this.senderBuckets = new Map();
+    this.globalBucket = {
+      tokens: Number(config.get('security.ingressBurst') || 10),
+      lastRefillAt: Date.now(),
+    };
+    this.telegramConflictAlertedAtCount = 0;
   }
 
+  /**
+   * Boot application: validate config, init storage, connect adapter, then start transports.
+   */
   async start() {
     this.validateConfig();
     this.store.init();
@@ -158,14 +187,49 @@ class App {
   }
 
   validateConfig() {
-    const ownerNumber = config.get('security.ownerNumber');
+    const ownerNumber = String(config.get('security.ownerNumber') || '').trim();
     if (!ownerNumber) {
       logger.fatal('Missing required config: security.ownerNumber');
       logger.info('Set it with: npx conf set security.ownerNumber "+15551234567"');
       process.exit(1);
     }
+
+    const telegramEnabled = Boolean(config.get('telegram.enabled'));
+    const webhookEnabled = Boolean(config.get('telegram.webhookEnabled'));
+    const botToken = String(config.get('telegram.botToken') || '').trim();
+    const webhookUrl = String(config.get('telegram.webhookUrl') || '').trim();
+    const webhookSecret = String(config.get('telegram.webhookSecret') || '').trim();
+
+    if (telegramEnabled && !botToken) {
+      logger.fatal('Missing required config: telegram.botToken (Telegram is enabled)');
+      process.exit(1);
+    }
+
+    if (botToken && looksLikePlaceholderToken(botToken)) {
+      logger.warn('telegram.botToken looks like a placeholder/example value. Rotate before production use.');
+    }
+
+    if (webhookEnabled) {
+      if (!webhookUrl) {
+        logger.fatal('Missing required config: telegram.webhookUrl (webhook mode enabled)');
+        process.exit(1);
+      }
+      if (!webhookSecret) {
+        logger.fatal('Missing required config: telegram.webhookSecret (webhook mode enabled)');
+        process.exit(1);
+      }
+    }
+
+    const requireEnvTokens = Boolean(config.get('security.requireEnvTokens'));
+    if (requireEnvTokens) {
+      this.enforceEnvOnlySecret('telegram.botToken');
+      this.enforceEnvOnlySecret('telegram.webhookSecret', { requiredWhen: webhookEnabled });
+    }
   }
 
+  /**
+   * Process inbound message from any transport and return user-facing response text.
+   */
   async handleMessage(event: IncomingMessageEvent): Promise<string | null> {
     const channel = event?.channel || 'whatsapp';
     const rawFrom = event?.from || '';
@@ -178,17 +242,32 @@ class App {
       const dedupKey = this.buildDedupKey(channel, dedupSender, messageId);
 
       if (!sender) {
-        return this.formatter.formatError(
-          'Access',
-          channel === 'telegram'
-            ? 'Access denied. Telegram account is not bound. Ask owner to run @oc /users bindtg <telegramUserId> <+phone> [username].'
-            : 'Access denied. Your number is not allowlisted.',
-        );
+          return this.formatter.formatError(
+            'Access',
+            channel === 'telegram'
+              ? 'Access denied. Telegram account is not bound. Ask owner to run /users bindtg <telegramUserId> <+phone> [username].'
+              : 'Access denied. Your number is not allowlisted.',
+          );
       }
 
       if (this.isDuplicate(dedupKey)) {
         return '✅ Already processed.';
       }
+
+      const throttle = this.checkIngressRateLimit(sender || dedupSender);
+      if (throttle.limited) {
+        this.auditEvent('ingress.throttled', {
+          sender,
+          channel,
+          scope: throttle.scope,
+          retryAfterMs: throttle.retryAfterMs,
+        });
+        return this.formatter.formatWarning(
+          'Throttle',
+          `Too many requests. Retry in ${Math.max(1, Math.ceil(throttle.retryAfterMs / 1000))}s.`,
+        );
+      }
+
       this.store.markMessageProcessed({
         dedupKey,
         channel,
@@ -219,7 +298,7 @@ class App {
       if (this.access.checkInactivity(session)) {
         return this.formatter.formatWarning(
           'Session',
-          'Session locked due to inactivity. Ask owner to unlock with @oc /unlock.',
+          'Session locked due to inactivity. Ask owner to unlock with /unlock.',
         );
       }
 
@@ -270,7 +349,7 @@ class App {
         if (this.access.isBusy(session)) {
           return this.formatter.formatWarning(
             'Queue',
-            'Still processing your previous command. Wait or use @oc /abort.',
+            'Still processing your previous command. Wait or use /abort.',
           );
         }
 
@@ -409,8 +488,54 @@ class App {
       await this.whatsappTransport.start();
     }
     if (config.get('telegram.enabled')) {
+      const pollingEnabled = Boolean(config.get('telegram.pollingEnabled'));
+      const webhookEnabled = Boolean(config.get('telegram.webhookEnabled'));
+      const shouldLeasePolling = pollingEnabled && !webhookEnabled;
+
+      if (shouldLeasePolling) {
+        const acquired = this.store.acquireTransportLease(
+          'telegram-polling',
+          this.instanceId,
+          60_000,
+        );
+        if (!acquired) {
+          logger.warn(
+            { lease: this.store.getTransportLease('telegram-polling') },
+            'Skipping Telegram polling start; lease owned by another instance',
+          );
+          return;
+        }
+
+        this.leaseHeartbeat = setInterval(() => {
+          const renewed = this.store.renewTransportLease('telegram-polling', this.instanceId, 60_000);
+          if (!renewed) {
+            logger.warn('Telegram polling lease renewal failed; transport may be preempted');
+          }
+        }, 20_000);
+      }
+
       await this.telegramTransport.start();
     }
+  }
+
+  /**
+   * Runtime status snapshot used by status and diagnostics commands.
+   */
+  getRuntimeStatus() {
+    const lease = this.store.getTransportLease('telegram-polling');
+    const now = Date.now();
+    return {
+      telegram: this.telegramTransport.getHealth(),
+      channels: {
+        telegramEnabled: Boolean(config.get('telegram.enabled')),
+        whatsappEnabled: Boolean(config.get('whatsapp.enabled')),
+      },
+      lease: {
+        ownerId: lease?.owner_id || null,
+        expiresInMs: lease ? Math.max(0, lease.expires_at - now) : 0,
+        ownedByCurrentInstance: Boolean(lease && lease.owner_id === this.instanceId),
+      },
+    };
   }
 
   async sendChannel(channel: string, to: string, text: string) {
@@ -472,6 +597,11 @@ class App {
     const stop = async () => {
       logger.info('Shutting down OpenCode Remote...');
       clearInterval(confirmCleanupInterval);
+      if (this.leaseHeartbeat) {
+        clearInterval(this.leaseHeartbeat);
+        this.leaseHeartbeat = null;
+      }
+      this.store.releaseTransportLease('telegram-polling', this.instanceId);
       if (this.stopEventStream) {
         this.stopEventStream();
         this.stopEventStream = null;
@@ -484,6 +614,132 @@ class App {
 
     process.on('SIGINT', stop);
     process.on('SIGTERM', stop);
+  }
+
+  enforceEnvOnlySecret(key: string, options: { requiredWhen?: boolean } = {}): void {
+    const required = options.requiredWhen !== false;
+    const persisted = String(config.getPersisted(key) || '').trim();
+    const hasEnv = config.hasEnvOverride(key);
+
+    if (persisted) {
+      logger.fatal({ key }, 'Env-only secret mode is enabled and persisted secret value was found. Remove it from local config.');
+      process.exit(1);
+    }
+
+    if (required && !hasEnv) {
+      logger.fatal({ key }, 'Env-only secret mode is enabled and required secret env var is missing.');
+      process.exit(1);
+    }
+  }
+
+  checkIngressRateLimit(sender: string): { limited: boolean; scope: 'global' | 'sender'; retryAfterMs: number } {
+    const senderRate = Math.max(1, Number(config.get('security.ingressPerSenderPerMinute')) || 30);
+    const globalRate = Math.max(1, Number(config.get('security.ingressGlobalPerMinute')) || 240);
+    const burst = Math.max(1, Number(config.get('security.ingressBurst')) || 10);
+    const now = Date.now();
+
+    if (!this.consumeFromBucket(this.globalBucket, globalRate, burst, now)) {
+      return {
+        limited: true,
+        scope: 'global',
+        retryAfterMs: this.estimateRetryMs(this.globalBucket, globalRate, now),
+      };
+    }
+
+    const key = sender || 'unknown';
+    const bucket = this.senderBuckets.get(key) || { tokens: burst, lastRefillAt: now };
+    this.senderBuckets.set(key, bucket);
+    if (!this.consumeFromBucket(bucket, senderRate, burst, now)) {
+      return {
+        limited: true,
+        scope: 'sender',
+        retryAfterMs: this.estimateRetryMs(bucket, senderRate, now),
+      };
+    }
+
+    if (this.senderBuckets.size > 5000) {
+      for (const [bucketKey, bucketValue] of this.senderBuckets.entries()) {
+        if (now - bucketValue.lastRefillAt > 15 * 60 * 1000) {
+          this.senderBuckets.delete(bucketKey);
+        }
+      }
+    }
+
+    return { limited: false, scope: 'sender', retryAfterMs: 0 };
+  }
+
+  consumeFromBucket(bucket: TokenBucket, perMinute: number, burst: number, now: number): boolean {
+    const elapsedMs = Math.max(0, now - bucket.lastRefillAt);
+    const refillPerMs = perMinute / 60_000;
+    const capacity = Math.max(burst, perMinute);
+    const replenished = Math.min(capacity, bucket.tokens + elapsedMs * refillPerMs);
+    bucket.tokens = replenished;
+    bucket.lastRefillAt = now;
+
+    if (bucket.tokens < 1) {
+      return false;
+    }
+
+    bucket.tokens -= 1;
+    return true;
+  }
+
+  estimateRetryMs(bucket: TokenBucket, perMinute: number, now: number): number {
+    const refillPerMs = perMinute / 60_000;
+    if (refillPerMs <= 0) {
+      return 1000;
+    }
+    if (bucket.tokens >= 1) {
+      return 0;
+    }
+    const elapsedMs = Math.max(0, now - bucket.lastRefillAt);
+    const tokensNow = Math.max(0, bucket.tokens + elapsedMs * refillPerMs);
+    return Math.max(250, Math.ceil((1 - tokensNow) / refillPerMs));
+  }
+
+  async notifyOwnerAboutPollingConflict(conflictCount: number, retryInMs: number): Promise<void> {
+    const owner = config.normalizePhone(config.get('security.ownerNumber'));
+    if (!owner) {
+      return;
+    }
+
+    const binding = this.store.getBinding(owner);
+    const chatId = binding?.telegram_chat_id || null;
+    const message = this.formatter.formatWarning(
+      'Telegram Polling',
+      `Polling conflict detected ${conflictCount} time(s). Retrying in ${Math.max(1, Math.ceil(retryInMs / 1000))}s. Another bot consumer is likely using the same token.`,
+    );
+
+    try {
+      await this.sendToAvailableChannels(owner, chatId, message);
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to send polling conflict alert to owner');
+    }
+  }
+
+  handleTelegramPollingConflict(event: {
+    conflictCount: number;
+    retryInMs: number;
+    pausedUntil: number;
+    error: string;
+  }): void {
+    this.auditEvent('telegram.polling_conflict', {
+      conflictCount: event.conflictCount,
+      retryInMs: event.retryInMs,
+      pausedUntil: event.pausedUntil,
+      error: event.error,
+    });
+
+    const threshold = Math.max(1, Number(config.get('telegram.pollingConflictAlertThreshold')) || 3);
+    if (event.conflictCount >= threshold && event.conflictCount > this.telegramConflictAlertedAtCount) {
+      this.telegramConflictAlertedAtCount = event.conflictCount;
+      void this.notifyOwnerAboutPollingConflict(event.conflictCount, event.retryInMs);
+    }
+  }
+
+  handleTelegramPollingRecovered(event: { recoveredAt: number }): void {
+    this.auditEvent('telegram.polling_recovered', event);
+    this.telegramConflictAlertedAtCount = 0;
   }
 }
 

@@ -33,15 +33,15 @@ v1.1.0 upgrades OpenCode Remote from a prototype-grade runtime to a durable loca
 npx conf set security.ownerNumber "+15551234567"
 ```
 
-5. Confirm health with WhatsApp command `@oc /status`.
+5. Confirm health with command `/status`.
 
 ## Verification Checklist
 
 - [ ] OpenCode server reachable from app host
 - [ ] WhatsApp QR pairing succeeds
-- [ ] `@oc /status` returns online state
-- [ ] `@oc /session list` returns session metadata
-- [ ] `@oc /runs` and `@oc /get <id>` work
+- [ ] `/status` returns online state
+- [ ] `/session list` returns session metadata
+- [ ] `/runs` and `/get <id>` work
 - [ ] Permission prompt events appear and accept `/allow` or `/deny`
 
 ## Known Limitations

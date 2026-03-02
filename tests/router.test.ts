@@ -44,6 +44,15 @@ test('routes natural language directly to prompt intent', async () => {
   assert.equal(parsed.args[0], 'can you fix auth tests and summarize changes');
 });
 
+test('routes natural language without alias to prompt intent', async () => {
+  const router = new CommandRouter(new AccessControllerStub());
+  const parsed = await router.parse('can you fix auth tests and summarize changes');
+
+  assert.equal(parsed.command, 'prompt');
+  assert.equal(parsed.tier, 'elevated');
+  assert.equal(parsed.args[0], 'can you fix auth tests and summarize changes');
+});
+
 test('routes explicit slash shell command to dangerous intent', async () => {
   const router = new CommandRouter(new AccessControllerStub());
   const parsed = await router.parse('@oc /run npm test');
@@ -51,6 +60,14 @@ test('routes explicit slash shell command to dangerous intent', async () => {
   assert.equal(parsed.command, 'run');
   assert.equal(parsed.tier, 'dangerous');
   assert.equal(parsed.args[0], 'npm test');
+});
+
+test('routes slash commands without alias', async () => {
+  const router = new CommandRouter(new AccessControllerStub());
+  const parsed = await router.parse('/status');
+
+  assert.equal(parsed.command, 'status');
+  assert.deepEqual(parsed.args, []);
 });
 
 test('routes slash users add command', async () => {

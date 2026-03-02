@@ -20,13 +20,13 @@ sequenceDiagram
   participant DB as SQLite
   participant EXEC as CommandExecutor
 
-  USER->>APP: @oc /shell rm -rf ...
+  USER->>APP: /shell rm -rf ...
   APP->>SAFETY: evaluate intent
   SAFETY-->>APP: requires confirmation
   APP->>DB: create confirmation(id, expires_at)
   APP-->>USER: prompt /confirm <id>
 
-  USER->>APP: @oc /confirm <id>
+  USER->>APP: /confirm <id>
   APP->>DB: validate unexpired confirmation
   APP->>EXEC: execute original intent
   APP->>DB: mark used + append audit

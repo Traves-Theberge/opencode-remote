@@ -5,6 +5,7 @@ import { OpsBridge } from '@opencode-remote/bridge';
 
 const bridge = new OpsBridge();
 
+/** CLI entrypoint for setup and operational maintenance commands. */
 async function main(): Promise<void> {
   const [command = 'help', ...args] = process.argv.slice(2);
 
@@ -27,12 +28,25 @@ async function main(): Promise<void> {
     case 'db':
       runDb(args);
       return;
+    case 'security':
+      runSecurity(args);
+      return;
     case 'help':
     default:
       printHelp();
   }
 }
 
+function runSecurity(args: string[]): void {
+  const action = args[0] || 'rotate-token-check';
+  if (action === 'rotate-token-check') {
+    printTaskResult(bridge.executeTask({ id: 'security.rotate-token-check' }));
+    return;
+  }
+  output.write('Usage: oc-remote security <rotate-token-check>\n');
+}
+
+/** Interactive onboarding wizard for owner + Telegram transport config. */
 async function runSetupWizard(args: string[]): Promise<void> {
   const dryRun = args.includes('--dry-run');
   const rl = readline.createInterface({ input, output });
@@ -82,6 +96,7 @@ async function runSetupWizard(args: string[]): Promise<void> {
   }
 }
 
+/** Render bridge status task output. */
 function runStatus(): void {
   printTaskResult(bridge.executeTask({ id: 'status' }));
 }
@@ -149,6 +164,7 @@ function runDb(args: string[]): void {
   output.write('Usage: oc-remote db <info|vacuum|prune>\n');
 }
 
+/** Print command-line help text. */
 function printHelp(): void {
   output.write(`
 OpenCode Remote CLI
@@ -163,9 +179,11 @@ Commands:
   db info                       Show db table stats
   db vacuum                     Run sqlite VACUUM
   db prune <table> <days>       Prune old rows (audit/runs/dead_letters/messages)
+  security rotate-token-check   Validate token hygiene and rotation posture
 `);
 }
 
+/** Render generic task result block for CLI output. */
 function printTaskResult(result: { title: string; lines: string[] }): void {
   output.write(`${result.title}\n`);
   output.write(`${'-'.repeat(result.title.length)}\n`);

@@ -84,6 +84,11 @@ test('exposes task catalog and status task output', () => {
   const status = bridge.executeTask({ id: 'status' });
   assert.equal(status.id, 'status');
   assert.ok(status.lines.some((line) => line.startsWith('DB:')));
+  assert.ok(status.lines.some((line) => line.startsWith('Telegram polling:')));
+
+  const security = bridge.executeTask({ id: 'security.rotate-token-check' });
+  assert.equal(security.id, 'security.rotate-token-check');
+  assert.ok(security.lines.length > 0);
   } finally {
     cleanup();
   }

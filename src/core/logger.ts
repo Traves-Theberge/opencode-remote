@@ -1,5 +1,6 @@
 import pino from 'pino';
 
+/** Shared structured logger for daemon/runtime modules. */
 const logger = pino({
   transport: {
     target: 'pino-pretty',

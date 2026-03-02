@@ -9,25 +9,30 @@ interface AdapterContext {
   directory?: string | null;
 }
 
+/**
+ * Adapter over the OpenCode SDK for deterministic command execution.
+ *
+ * Keeps SDK shape handling localized and returns app-friendly response payloads.
+ */
 export class OpenCodeAdapter {
   client: OpencodeClient;
-  server: { close: () => void } | null;
   currentSessionId: string | null;
   eventAbortController: AbortController | null;
   eventLoop: Promise<void> | null;
 
   constructor() {
     this.client = null as unknown as OpencodeClient;
-    this.server = null;
     this.currentSessionId = null;
     this.eventAbortController = null;
     this.eventLoop = null;
   }
 
+  /** Resolve effective session id from explicit context or current adapter state. */
   resolveSessionId(context: AdapterContext = {}): string | null {
     return context.sessionId || this.currentSessionId;
   }
 
+  /** Build optional directory query object for SDK calls. */
   buildQuery(context: AdapterContext = {}): { directory?: string } | undefined {
     const query: { directory?: string } = {};
     if (context.directory) {
@@ -36,6 +41,7 @@ export class OpenCodeAdapter {
     return Object.keys(query).length > 0 ? query : undefined;
   }
 
+  /** Initialize OpenCode client and verify connectivity. */
   async start() {
     const serverUrl = String(config.get('opencode.serverUrl') || 'http://localhost:4096');
     
@@ -56,6 +62,7 @@ export class OpenCodeAdapter {
     }
   }
 
+  /** Create a new OpenCode session and set adapter current session pointer. */
   async createSession(title = 'WhatsApp Remote Session', context: AdapterContext = {}) {
     try {
       const result = await this.client.session.create({
@@ -77,6 +84,7 @@ export class OpenCodeAdapter {
     }
   }
 
+  /** Send prompt text to OpenCode prompt endpoint. */
   async sendPrompt(
     text: string,
     options: AdapterContext = {},
@@ -112,6 +120,7 @@ export class OpenCodeAdapter {
     }
   }
 
+  /** Execute command via command endpoint, with shell fallback compatibility. */
   async runCommand(command: string, context: AdapterContext = {}) {
     const sessionId = this.resolveSessionId(context);
 
@@ -138,6 +147,7 @@ export class OpenCodeAdapter {
     }
   }
 
+  /** Execute shell command via shell endpoint. */
   async runShell(command: string, context: AdapterContext = {}) {
     const sessionId = this.resolveSessionId(context);
     
@@ -592,8 +602,5 @@ export class OpenCodeAdapter {
       this.eventLoop = null;
     }
 
-    if (this.server) {
-      this.server.close();
-    }
   }
 }

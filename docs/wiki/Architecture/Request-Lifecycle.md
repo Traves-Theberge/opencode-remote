@@ -20,7 +20,7 @@ Document end-to-end message flow for inbound commands and event fan-out.
 
 ## Key invariants
 
-- All inbound inputs normalize to shared `@oc` command grammar.
+- All inbound inputs normalize to shared slash/prompt command grammar.
 - Idempotency is enforced before execution.
 - Access control and policy checks apply before adapter calls.
 

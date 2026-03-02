@@ -27,6 +27,7 @@ const defaults = {
     webhookPort: 4097,
     webhookPath: '/telegram/webhook',
     webhookMaxBodyBytes: 1_000_000,
+    pollingConflictAlertThreshold: 3,
   },
   opencode: {
     serverUrl: 'http://localhost:4096',
@@ -42,6 +43,10 @@ const defaults = {
     sessionStaleTimeout: 2 * 60 * 60 * 1000,
     ownerNumber: '',
     allowedNumbers: [],
+    requireEnvTokens: false,
+    ingressPerSenderPerMinute: 30,
+    ingressGlobalPerMinute: 240,
+    ingressBurst: 10,
   },
   commands: {
     dangerousDenyList: [
@@ -55,6 +60,24 @@ const defaults = {
   },
 };
 
+function keyToEnvKey(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .toUpperCase();
+}
+
+function parseBooleanEnv(raw: string): boolean | null {
+  const value = raw.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(value)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'off'].includes(value)) {
+    return false;
+  }
+  return null;
+}
+
 class Config {
   private store: Conf<Record<string, unknown>>;
 
@@ -66,6 +89,14 @@ class Config {
   }
 
   get(key: string): unknown {
+    const envOverride = this.getEnvOverride(key);
+    if (envOverride !== undefined) {
+      return envOverride;
+    }
+    return this.store.get(key);
+  }
+
+  getPersisted(key: string): unknown {
     return this.store.get(key);
   }
 
@@ -75,6 +106,10 @@ class Config {
 
   delete(key: string): void {
     this.store.delete(key);
+  }
+
+  hasEnvOverride(key: string): boolean {
+    return process.env[keyToEnvKey(key)] !== undefined;
   }
 
   getAllowedNumbers() {
@@ -139,6 +174,75 @@ class Config {
       this.normalizePhone(this.get('security.ownerNumber')) ===
       this.normalizePhone(number)
     );
+  }
+
+  /**
+   * Resolve environment override for a dotted config key.
+   *
+   * Examples:
+   * - `telegram.botToken` -> `TELEGRAM_BOT_TOKEN`
+   * - `storage.dbPath` -> `STORAGE_DB_PATH`
+   */
+  private getEnvOverride(key: string): unknown {
+    const envKey = keyToEnvKey(key);
+    const raw = process.env[envKey];
+    if (raw === undefined) {
+      return undefined;
+    }
+
+    const defaultValue = this.resolveDefaultValue(key);
+    if (typeof defaultValue === 'boolean') {
+      const parsed = parseBooleanEnv(raw);
+      return parsed === null ? defaultValue : parsed;
+    }
+
+    if (typeof defaultValue === 'number') {
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : defaultValue;
+    }
+
+    if (Array.isArray(defaultValue)) {
+      if (raw.trim().startsWith('[')) {
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : defaultValue;
+        } catch {
+          return defaultValue;
+        }
+      }
+      return raw
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    }
+
+    if (defaultValue && typeof defaultValue === 'object' && raw.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : defaultValue;
+      } catch {
+        return defaultValue;
+      }
+    }
+
+    return raw;
+  }
+
+  /**
+   * Look up default value shape for type-coerced env parsing.
+   */
+  private resolveDefaultValue(key: string): unknown {
+    const segments = key.split('.');
+    let cursor: unknown = defaults;
+
+    for (const segment of segments) {
+      if (!cursor || typeof cursor !== 'object' || !(segment in cursor)) {
+        return undefined;
+      }
+      cursor = (cursor as Record<string, unknown>)[segment];
+    }
+
+    return cursor;
   }
 }
 

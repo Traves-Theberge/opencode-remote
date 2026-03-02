@@ -1,4 +1,5 @@
-import { Client, LocalAuth } from 'whatsapp-web.js';
+import whatsappWeb from 'whatsapp-web.js';
+import type { Client } from 'whatsapp-web.js';
 import QRCode from 'qrcode';
 import { logger } from '../core/logger.js';
 import { config } from '../core/config.js';
@@ -20,6 +21,14 @@ interface DeadLetterPayload {
   payload: { timestamp: number | null };
 }
 
+const { Client: WhatsAppClient, LocalAuth } = whatsappWeb as {
+  Client: new (options: {
+    authStrategy: unknown;
+    puppeteer: { headless: boolean; args: string[] };
+  }) => Client;
+  LocalAuth: new (options: { dataPath: string }) => unknown;
+};
+
 export class WhatsAppTransport {
   onMessage: (event: IncomingEvent) => Promise<string | null>;
   onDeadLetter: ((event: DeadLetterPayload) => Promise<void>) | null;
@@ -38,10 +47,13 @@ export class WhatsAppTransport {
     this.reconnectAttempts = 0;
   }
 
+  /**
+   * Start WhatsApp web transport and register lifecycle/message handlers.
+   */
   async start() {
     const sessionPath = String(config.get('whatsapp.sessionPath') || './.wwebjs_auth');
     
-    this.client = new Client({
+    this.client = new WhatsAppClient({
       authStrategy: new LocalAuth({
         dataPath: sessionPath,
       }),
@@ -112,13 +124,16 @@ export class WhatsAppTransport {
     }
   }
 
+  /**
+   * Handle a single inbound WhatsApp message and dispatch response.
+   */
   async handleIncomingMessage(message: { from: string; body?: string; id?: { _serialized?: string }; timestamp?: number }) {
     const from = message.from;
     const body = message.body?.trim() || '';
     
     logger.info({ from, body: body.slice(0, 50) }, 'Incoming message');
 
-    if (!body.startsWith('@oc')) {
+    if (!body) {
       return;
     }
 

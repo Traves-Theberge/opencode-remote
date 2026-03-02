@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+npm-debug.log
+data
+config
+.wwebjs_auth
+docs
+tests
+coverage
+*.db
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

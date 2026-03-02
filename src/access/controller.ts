@@ -29,6 +29,12 @@ interface AccessCheckResult {
   role: 'owner' | 'user' | 'denied';
 }
 
+/**
+ * Access/session state coordinator.
+ *
+ * Enforces allowlist and role checks, manages in-memory session state, and
+ * persists session binding metadata into LocalStore.
+ */
 export class AccessController {
   store: LocalStore;
   sessions: Map<string, SessionState>;
@@ -38,6 +44,7 @@ export class AccessController {
     this.sessions = new Map();
   }
 
+  /** Validate sender identity against allowlist + owner role. */
   checkAccess(phoneNumber: string): AccessCheckResult {
     const normalized = config.normalizePhone(phoneNumber);
     const isAllowed = this.store.isAllowed(normalized);
@@ -55,6 +62,7 @@ export class AccessController {
     return this.store.isOwner(config.normalizePhone(phoneNumber));
   }
 
+  /** Resolve or create in-memory session for sender phone. */
   getOrCreateSession(phoneNumber: string): SessionState {
     const normalized = config.normalizePhone(phoneNumber);
     const access = this.checkAccess(normalized);
@@ -116,6 +124,7 @@ export class AccessController {
     return session.cwd || session.workspaceRoot;
   }
 
+  /** Set working directory within workspace boundary. */
   setCwd(session: SessionState, targetPath: string) {
     if (!targetPath || typeof targetPath !== 'string') {
       return { ok: false, error: 'Missing path' };
@@ -226,6 +235,7 @@ export class AccessController {
     return this.store.listAllowedNumbers();
   }
 
+  /** Create single-use confirmation id for dangerous actions. */
   createConfirm(action: ConfirmAction, session: SessionState): string {
     const confirmId = uuidv4().slice(0, 8).toUpperCase();
     const maxAge = Number(config.get('security.maxConfirmAge')) || 5 * 60 * 1000;
@@ -240,6 +250,7 @@ export class AccessController {
     return confirmId;
   }
 
+  /** Verify and consume confirmation token for current session. */
   verifyConfirm(confirmId: string, session: SessionState) {
     const pending = this.store.getConfirmation(confirmId);
     if (!pending) {
