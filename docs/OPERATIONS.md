@@ -96,6 +96,7 @@ npm run docker:redeploy
 ```
 
 This performs a no-cache image rebuild and force-recreates the `remote` service to prevent stale code/image mismatches.
+By default it sets `OPENCODE_REMOTE_BUILD_ID` to `git-short-sha + timestamp` so startup fingerprint logs prove which build is running.
 
 ## Initial Provisioning
 

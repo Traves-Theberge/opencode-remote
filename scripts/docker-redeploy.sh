@@ -4,6 +4,17 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+if [[ -z "${OPENCODE_REMOTE_BUILD_ID:-}" ]]; then
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    OPENCODE_REMOTE_BUILD_ID="$(git rev-parse --short HEAD)-$(date +%Y%m%d%H%M%S)"
+  else
+    OPENCODE_REMOTE_BUILD_ID="local-$(date +%Y%m%d%H%M%S)"
+  fi
+fi
+export OPENCODE_REMOTE_BUILD_ID
+
+echo "[redeploy] Using build id: ${OPENCODE_REMOTE_BUILD_ID}"
+
 echo "[redeploy] Building compose service image (no cache)..."
 docker compose build --no-cache remote
 

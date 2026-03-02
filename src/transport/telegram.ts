@@ -553,7 +553,8 @@ export class TelegramTransport {
       return;
     }
 
-    const chunks = this.chunkMessage(String(text || ''), 4096);
+    const escaped = this.escapeHtml(String(text || ''));
+    const chunks = this.chunkMessage(escaped, 4096);
     for (const chunk of chunks) {
       await this.api('sendMessage', {
         chat_id: chatId,
@@ -585,6 +586,13 @@ export class TelegramTransport {
     }
 
     return chunks;
+  }
+
+  escapeHtml(text: string): string {
+    return String(text || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }
 
   async moveToDeadLetter(update: TelegramUpdate, error: unknown, attempts: number) {

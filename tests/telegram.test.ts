@@ -139,6 +139,14 @@ test('normalizes plain telegram shorthand to slash commands', () => {
   assert.equal(transport.normalizeBody('help'), '/help');
 });
 
+test('escapes html entities for telegram html parse mode', () => {
+  const transport = new TelegramTransportStub(async () => null);
+  assert.equal(
+    transport.escapeHtml('Run: <runId> & <status>'),
+    'Run: &lt;runId&gt; &amp; &lt;status&gt;',
+  );
+});
+
 test('polling loop does not overlap concurrent getUpdates requests', async () => {
   class PollingProbe extends TelegramTransport {
     current = 0;

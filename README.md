@@ -86,6 +86,7 @@ docker compose logs -f remote
 ```
 
 This redeploy command forces a no-cache image build and container recreate so Docker always runs the latest source changes.
+It also stamps each build with `OPENCODE_REMOTE_BUILD_ID` (git short SHA + timestamp by default) for runtime fingerprint verification.
 
 Webhook-first production profile:
 

@@ -11,6 +11,7 @@ All notable changes to this project are documented in this file.
 ### Added
 
 - Deterministic Docker redeploy script: `scripts/docker-redeploy.sh` (`npm run docker:redeploy`).
+  - now auto-stamps `OPENCODE_REMOTE_BUILD_ID` from git short SHA + timestamp when not explicitly set.
 - Runtime fingerprint logging at startup (version/build-id/token fingerprint/mode summary).
 - Polling recovery diagnostics in status surfaces:
   - reset cooldown timing
@@ -134,6 +135,7 @@ All notable changes to this project are documented in this file.
 - Telegram polling conflict owner alerts are now cooldown-limited to reduce repeated notification spam.
 - Telegram polling startup now prepares session state (`deleteWebhook` + `close` with retry-after-aware cooldown handling).
 - Polling loop now enforces single in-flight cycle to avoid overlap and improve conflict stability.
+- Telegram outbound message send now escapes HTML entities before `parse_mode=HTML` delivery to prevent `can't parse entities` send failures.
 - Runtime `/status` output now includes transport health and polling conflict recovery timing.
 - SQLite schema now includes transport lease support (`transport_leases`) to protect polling ownership on shared DB deployments.
 - Webhook mode now fails fast unless `telegram.webhookSecret` is configured.
