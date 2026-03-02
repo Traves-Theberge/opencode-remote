@@ -2,8 +2,7 @@
 
 ## Alias
 
-- Prefix is optional.
-- `@oc ...` remains backward-compatible but is treated as a legacy alias.
+- Prefix is optional (no prefix required).
 - Slash commands (`/...`) are parsed directly.
 - Plain text is treated as prompt input.
 

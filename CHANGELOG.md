@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Removed `@oc` prefix requirement - commands now work without any prefix
+
 ### Added
 
 - Docker runtime support:

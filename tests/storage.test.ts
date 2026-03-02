@@ -113,7 +113,7 @@ test('stores dead-letter events', () => {
       channel: 'whatsapp',
       messageId: 'msg-123',
       sender: '+15550001111',
-      body: '@oc /status',
+      body: '/status',
       error: 'simulated failure',
       attempts: 3,
       payload: { timestamp: 12345 },

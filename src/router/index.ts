@@ -88,8 +88,6 @@ export class CommandRouter {
 
   /**
    * Parse incoming text into command/tier/args.
-   *
-   * Prefix `@oc` is supported for backward compatibility but optional.
    */
   async parse(rawMessage: string): Promise<ParsedCommand | null> {
     const text = rawMessage.trim();
@@ -97,7 +95,7 @@ export class CommandRouter {
       return null;
     }
 
-    const content = text.toLowerCase().startsWith('@oc') ? this.stripAlias(text) : text;
+    const content = text;
     if (!content) {
       return this.toParsed('help', []);
     }
@@ -331,15 +329,6 @@ export class CommandRouter {
       args,
       raw: [command, ...args].join(' '),
     };
-  }
-
-  stripAlias(text: string): string {
-    const parts = text.split(/\s+/);
-    const alias = parts[0];
-    if (!alias || alias.toLowerCase() !== '@oc') {
-      return '';
-    }
-    return text.slice(alias.length).trim();
   }
 
   /**
@@ -773,10 +762,7 @@ Admin (owner only):
 • /users list | /users add <number> | /users remove <number>
 • /users bindtg <telegramUserId> <number> [username]
 • /users unbindtg <telegramUserId> | /users tglist
-• /lock | /unlock
-
-Compatibility:
-• Prefixing with @oc still works, but it is optional.`;
+• /lock | /unlock`;
   }
 
   formatPendingConfirmation(confirmId: string, command: string): string {

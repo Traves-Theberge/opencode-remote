@@ -401,10 +401,6 @@ export class TelegramTransport {
       return '';
     }
 
-    if (text.toLowerCase().startsWith('@oc')) {
-      return text.replace(/^@oc\s*/i, '').trimStart();
-    }
-
     if (text.startsWith('/')) {
       return text.replace('/session_list', '/session list').replace('/session_new', '/session new');
     }

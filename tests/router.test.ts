@@ -37,7 +37,7 @@ class AccessControllerStub {
 
 test('routes natural language directly to prompt intent', async () => {
   const router = new CommandRouter(new AccessControllerStub());
-  const parsed = await router.parse('@oc can you fix auth tests and summarize changes');
+  const parsed = await router.parse('can you fix auth tests and summarize changes');
 
   assert.equal(parsed.command, 'prompt');
   assert.equal(parsed.tier, 'elevated');
@@ -55,7 +55,7 @@ test('routes natural language without alias to prompt intent', async () => {
 
 test('routes explicit slash shell command to dangerous intent', async () => {
   const router = new CommandRouter(new AccessControllerStub());
-  const parsed = await router.parse('@oc /run npm test');
+  const parsed = await router.parse('/run npm test');
 
   assert.equal(parsed.command, 'run');
   assert.equal(parsed.tier, 'dangerous');
@@ -72,7 +72,7 @@ test('routes slash commands without alias', async () => {
 
 test('routes slash users add command', async () => {
   const router = new CommandRouter(new AccessControllerStub());
-  const parsed = await router.parse('@oc /users add +15551234567');
+  const parsed = await router.parse('/users add +15551234567');
 
   assert.equal(parsed.command, 'users add');
   assert.equal(parsed.tier, 'safe');
@@ -81,7 +81,7 @@ test('routes slash users add command', async () => {
 
 test('rejects invalid phone value in users add command parsing', async () => {
   const router = new CommandRouter(new AccessControllerStub());
-  const parsed = await router.parse('@oc /users add not-a-phone');
+  const parsed = await router.parse('/users add not-a-phone');
 
   assert.equal(parsed.command, 'users add');
   assert.equal(parsed.args[0], '');
@@ -89,7 +89,7 @@ test('rejects invalid phone value in users add command parsing', async () => {
 
 test('routes slash help command', async () => {
   const router = new CommandRouter(new AccessControllerStub());
-  const parsed = await router.parse('@oc /help');
+  const parsed = await router.parse('/help');
 
   assert.equal(parsed.command, 'help');
   assert.deepEqual(parsed.args, []);
@@ -98,10 +98,10 @@ test('routes slash help command', async () => {
 test('routes slash pwd and cd commands', async () => {
   const router = new CommandRouter(new AccessControllerStub());
 
-  const pwd = await router.parse('@oc /pwd');
+  const pwd = await router.parse('/pwd');
   assert.equal(pwd.command, 'pwd');
 
-  const cd = await router.parse('@oc /cd src/components');
+  const cd = await router.parse('/cd src/components');
   assert.equal(cd.command, 'cd');
   assert.equal(cd.args[0], 'src/components');
 });
@@ -109,11 +109,11 @@ test('routes slash pwd and cd commands', async () => {
 test('routes session use and session new commands', async () => {
   const router = new CommandRouter(new AccessControllerStub());
 
-  const useCmd = await router.parse('@oc /session use abc123');
+  const useCmd = await router.parse('/session use abc123');
   assert.equal(useCmd.command, 'session use');
   assert.equal(useCmd.args[0], 'abc123');
 
-  const newCmd = await router.parse('@oc /session new Release prep');
+  const newCmd = await router.parse('/session new Release prep');
   assert.equal(newCmd.command, 'session new');
   assert.equal(newCmd.args[0], 'Release prep');
 });
@@ -121,15 +121,15 @@ test('routes session use and session new commands', async () => {
 test('routes slash ls/find/grep commands', async () => {
   const router = new CommandRouter(new AccessControllerStub());
 
-  const ls = await router.parse('@oc /ls src');
+  const ls = await router.parse('/ls src');
   assert.equal(ls.command, 'ls');
   assert.equal(ls.args[0], 'src');
 
-  const find = await router.parse('@oc /find auth');
+  const find = await router.parse('/find auth');
   assert.equal(find.command, 'find');
   assert.equal(find.args[0], 'auth');
 
-  const grep = await router.parse('@oc /grep sessionId');
+  const grep = await router.parse('/grep sessionId');
   assert.equal(grep.command, 'grep');
   assert.equal(grep.args[0], 'sessionId');
 });
@@ -137,12 +137,12 @@ test('routes slash ls/find/grep commands', async () => {
 test('routes permission reply commands', async () => {
   const router = new CommandRouter(new AccessControllerStub());
 
-  const perm = await router.parse('@oc /permission perm_123 always');
+  const perm = await router.parse('/permission perm_123 always');
   assert.equal(perm.command, 'permission reply');
   assert.equal(perm.args[0], 'perm_123');
   assert.equal(perm.args[1], 'always');
 
-  const allow = await router.parse('@oc /allow perm_abc');
+  const allow = await router.parse('/allow perm_abc');
   assert.equal(allow.command, 'permission reply');
   assert.equal(allow.args[0], 'perm_abc');
   assert.equal(allow.args[1], 'once');
@@ -151,10 +151,10 @@ test('routes permission reply commands', async () => {
 test('routes run retrieval commands', async () => {
   const router = new CommandRouter(new AccessControllerStub());
 
-  const runs = await router.parse('@oc /runs');
+  const runs = await router.parse('/runs');
   assert.equal(runs.command, 'output runs');
 
-  const get = await router.parse('@oc /get ABCD1234');
+  const get = await router.parse('/get ABCD1234');
   assert.equal(get.command, 'output get');
   assert.equal(get.args[0], 'ABCD1234');
 });
@@ -162,30 +162,30 @@ test('routes run retrieval commands', async () => {
 test('routes telegram binding admin commands', async () => {
   const router = new CommandRouter(new AccessControllerStub());
 
-  const bind = await router.parse('@oc /users bindtg 123456789 +15551234567 alice');
+  const bind = await router.parse('/users bindtg 123456789 +15551234567 alice');
   assert.equal(bind.command, 'users bindtg');
   assert.equal(bind.args[0], '123456789');
   assert.equal(bind.args[1], '+15551234567');
   assert.equal(bind.args[2], 'alice');
 
-  const unbind = await router.parse('@oc /users unbindtg 123456789');
+  const unbind = await router.parse('/users unbindtg 123456789');
   assert.equal(unbind.command, 'users unbindtg');
   assert.equal(unbind.args[0], '123456789');
 
-  const tglist = await router.parse('@oc /users tglist');
+  const tglist = await router.parse('/users tglist');
   assert.equal(tglist.command, 'users tglist');
 });
 
 test('routes model namespace commands', async () => {
   const router = new CommandRouter(new AccessControllerStub());
 
-  const status = await router.parse('@oc /model status');
+  const status = await router.parse('/model status');
   assert.equal(status.command, 'model status');
 
-  const list = await router.parse('@oc /model list');
+  const list = await router.parse('/model list');
   assert.equal(list.command, 'model list');
 
-  const set = await router.parse('@oc /model set anthropic claude-3-5-sonnet');
+  const set = await router.parse('/model set anthropic claude-3-5-sonnet');
   assert.equal(set.command, 'model set');
   assert.equal(set.args[0], 'anthropic');
   assert.equal(set.args[1], 'claude-3-5-sonnet');
@@ -195,44 +195,44 @@ test('routes model namespace commands', async () => {
 test('routes tools and mcp namespace commands', async () => {
   const router = new CommandRouter(new AccessControllerStub());
 
-  const toolsIds = await router.parse('@oc /tools ids');
+  const toolsIds = await router.parse('/tools ids');
   assert.equal(toolsIds.command, 'tools ids');
 
-  const toolsList = await router.parse('@oc /tools list anthropic claude-3-5-sonnet');
+  const toolsList = await router.parse('/tools list anthropic claude-3-5-sonnet');
   assert.equal(toolsList.command, 'tools list');
   assert.equal(toolsList.args[0], 'anthropic');
   assert.equal(toolsList.args[1], 'claude-3-5-sonnet');
 
-  const mcpStatus = await router.parse('@oc /mcp status');
+  const mcpStatus = await router.parse('/mcp status');
   assert.equal(mcpStatus.command, 'mcp status');
 
-  const mcpAdd = await router.parse('@oc /mcp add docs npx @modelcontextprotocol/server-filesystem');
+  const mcpAdd = await router.parse('/mcp add docs npx @modelcontextprotocol/server-filesystem');
   assert.equal(mcpAdd.command, 'mcp add');
   assert.equal(mcpAdd.tier, 'dangerous');
 
-  const mcpConnect = await router.parse('@oc /mcp connect docs');
+  const mcpConnect = await router.parse('/mcp connect docs');
   assert.equal(mcpConnect.command, 'mcp connect');
 
-  const mcpDisconnect = await router.parse('@oc /mcp disconnect docs');
+  const mcpDisconnect = await router.parse('/mcp disconnect docs');
   assert.equal(mcpDisconnect.command, 'mcp disconnect');
 });
 
 test('routes skills and opencode diagnostic commands', async () => {
   const router = new CommandRouter(new AccessControllerStub());
 
-  const skills = await router.parse('@oc /skills list');
+  const skills = await router.parse('/skills list');
   assert.equal(skills.command, 'skills list');
 
-  const status = await router.parse('@oc /opencode status');
+  const status = await router.parse('/opencode status');
   assert.equal(status.command, 'opencode status');
 
-  const providers = await router.parse('@oc /opencode providers');
+  const providers = await router.parse('/opencode providers');
   assert.equal(providers.command, 'opencode providers');
 
-  const commands = await router.parse('@oc /opencode commands');
+  const commands = await router.parse('/opencode commands');
   assert.equal(commands.command, 'opencode commands');
 
-  const diagnostics = await router.parse('@oc /opencode diagnostics');
+  const diagnostics = await router.parse('/opencode diagnostics');
   assert.equal(diagnostics.command, 'opencode diagnostics');
 });
 
@@ -241,7 +241,7 @@ test('blocks non-owner for mutating advanced commands', async () => {
   access.owner = false;
   const router = new CommandRouter(access);
 
-  const parsed = await router.parse('@oc /model set anthropic claude-3-5-sonnet');
+  const parsed = await router.parse('/model set anthropic claude-3-5-sonnet');
   assert.ok(parsed);
 
   const response = await router.route(
