@@ -12,6 +12,8 @@ export interface RuntimeConfig {
   telegramPollingState: 'healthy' | 'degraded' | 'unknown';
   telegramPollingConflictCount: number;
   telegramPollingRetryInMs: number;
+  telegramPollingRecoveryBlockedInMs: number;
+  telegramPollingLastRecoveryError: string;
 }
 
 export interface AuditRow {
@@ -75,6 +77,8 @@ interface TelegramPollingHealth {
   state: 'healthy' | 'degraded' | 'unknown';
   conflictCount: number;
   retryInMs: number;
+  recoveryBlockedInMs: number;
+  lastRecoveryError: string;
 }
 
 export interface TaskRequest {
@@ -235,6 +239,8 @@ export class OpsBridge {
       telegramPollingState: polling.state,
       telegramPollingConflictCount: polling.conflictCount,
       telegramPollingRetryInMs: polling.retryInMs,
+      telegramPollingRecoveryBlockedInMs: polling.recoveryBlockedInMs,
+      telegramPollingLastRecoveryError: polling.lastRecoveryError,
     };
   }
 
@@ -409,7 +415,10 @@ export class OpsBridge {
           `DB: ${cfg.storageDbPath}`,
           `DB exists: ${this.databaseExists() ? 'yes' : 'no'}`,
           `Telegram: ${cfg.telegramEnabled ? cfg.telegramMode : 'disabled'}`,
-          `Telegram polling: ${cfg.telegramPollingState} conflicts=${cfg.telegramPollingConflictCount} retry_in=${Math.max(0, Math.ceil(cfg.telegramPollingRetryInMs / 1000))}s`,
+          `Telegram polling: ${cfg.telegramPollingState} conflicts=${cfg.telegramPollingConflictCount} retry_in=${Math.max(0, Math.ceil(cfg.telegramPollingRetryInMs / 1000))}s reset_cooldown=${Math.max(0, Math.ceil(cfg.telegramPollingRecoveryBlockedInMs / 1000))}s`,
+          cfg.telegramPollingLastRecoveryError
+            ? `Telegram recovery error: ${cfg.telegramPollingLastRecoveryError}`
+            : '',
           `Rows: users=${stats.users} runs=${stats.runs} audit=${stats.audit} dead_letters=${stats.deadLetters}`,
         ],
       };
@@ -525,7 +534,13 @@ export class OpsBridge {
 
   getTelegramPollingHealth(): TelegramPollingHealth {
     if (!this.databaseExists()) {
-      return { state: 'unknown', conflictCount: 0, retryInMs: 0 };
+      return {
+        state: 'unknown',
+        conflictCount: 0,
+        retryInMs: 0,
+        recoveryBlockedInMs: 0,
+        lastRecoveryError: '',
+      };
     }
 
     const db = new Database(this.resolveDbPath(), { readonly: true });
@@ -537,7 +552,13 @@ export class OpsBridge {
         .get('telegram.polling_conflict') as { payload_json?: string; created_at?: number } | undefined;
 
       if (!conflictRow) {
-        return { state: 'healthy', conflictCount: 0, retryInMs: 0 };
+        return {
+          state: 'healthy',
+          conflictCount: 0,
+          retryInMs: 0,
+          recoveryBlockedInMs: 0,
+          lastRecoveryError: '',
+        };
       }
 
       const recoveredRow = db
@@ -549,15 +570,21 @@ export class OpsBridge {
       let conflictCount = 1;
       let retryInMs = 0;
       let pausedUntil = 0;
+      let recoveryBlockedForMs = 0;
+      let lastRecoveryError = '';
       try {
         const payload = JSON.parse(String(conflictRow.payload_json || '{}')) as {
           conflictCount?: number;
           retryInMs?: number;
           pausedUntil?: number;
+          recoveryBlockedForMs?: number;
+          lastRecoveryError?: string;
         };
         conflictCount = Number(payload.conflictCount || 1);
         retryInMs = Number(payload.retryInMs || 0);
         pausedUntil = Number(payload.pausedUntil || 0);
+        recoveryBlockedForMs = Number(payload.recoveryBlockedForMs || 0);
+        lastRecoveryError = String(payload.lastRecoveryError || '');
       } catch {
         // ignore malformed payloads
       }
@@ -565,7 +592,13 @@ export class OpsBridge {
       const recoveredAt = Number(recoveredRow?.created_at || 0);
       const conflictAt = Number(conflictRow.created_at || 0);
       if (recoveredAt >= conflictAt) {
-        return { state: 'healthy', conflictCount: 0, retryInMs: 0 };
+        return {
+          state: 'healthy',
+          conflictCount: 0,
+          retryInMs: 0,
+          recoveryBlockedInMs: 0,
+          lastRecoveryError: '',
+        };
       }
 
       const remaining = Math.max(0, pausedUntil - Date.now());
@@ -573,6 +606,8 @@ export class OpsBridge {
         state: 'degraded',
         conflictCount,
         retryInMs: remaining || retryInMs,
+        recoveryBlockedInMs: Math.max(0, recoveryBlockedForMs),
+        lastRecoveryError,
       };
     } finally {
       db.close();

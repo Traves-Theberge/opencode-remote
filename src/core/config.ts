@@ -28,6 +28,9 @@ const defaults = {
     webhookPath: '/telegram/webhook',
     webhookMaxBodyBytes: 1_000_000,
     pollingConflictAlertThreshold: 3,
+    pollingConflictAlertCooldownMs: 300_000,
+    pollingRecoveryMinIntervalMs: 60_000,
+    pollingCloseMaxAttempts: 2,
   },
   opencode: {
     serverUrl: 'http://localhost:4096',

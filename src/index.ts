@@ -77,6 +77,7 @@ class App {
   senderBuckets: Map<string, TokenBucket>;
   globalBucket: TokenBucket;
   telegramConflictAlertedAtCount: number;
+  telegramConflictLastAlertAt: number;
 
   constructor() {
     this.store = new LocalStore(String(config.get('storage.dbPath') || './data/opencode-remote.db'));
@@ -113,6 +114,7 @@ class App {
       lastRefillAt: Date.now(),
     };
     this.telegramConflictAlertedAtCount = 0;
+    this.telegramConflictLastAlertAt = 0;
   }
 
   /**
@@ -120,6 +122,7 @@ class App {
    */
   async start() {
     this.validateConfig();
+    this.logRuntimeFingerprint();
     this.store.init();
     this.store.ensureOwner(config.normalizePhone(String(config.get('security.ownerNumber') || '')));
     this.seedOwnerTelegramIdentity();
@@ -135,6 +138,30 @@ class App {
 
     logger.info('OpenCode Remote started');
     this.installShutdownHandlers();
+  }
+
+  logRuntimeFingerprint() {
+    const token = String(config.get('telegram.botToken') || '');
+    const tokenFingerprint = token
+      ? `len:${token.length}:..${token.slice(Math.max(0, token.length - 6))}`
+      : 'missing';
+    logger.info(
+      {
+        version: process.env.npm_package_version || 'unknown',
+        buildId: process.env.OPENCODE_REMOTE_BUILD_ID || 'dev',
+        instanceId: this.instanceId,
+        pid: process.pid,
+        node: process.version,
+        dbPath: String(config.get('storage.dbPath') || ''),
+        telegram: {
+          enabled: Boolean(config.get('telegram.enabled')),
+          pollingEnabled: Boolean(config.get('telegram.pollingEnabled')),
+          webhookEnabled: Boolean(config.get('telegram.webhookEnabled')),
+          tokenFingerprint,
+        },
+      },
+      'Runtime fingerprint',
+    );
   }
 
   async startEventMonitor() {
@@ -530,6 +557,10 @@ class App {
         telegramEnabled: Boolean(config.get('telegram.enabled')),
         whatsappEnabled: Boolean(config.get('whatsapp.enabled')),
       },
+      build: {
+        version: process.env.npm_package_version || 'unknown',
+        buildId: process.env.OPENCODE_REMOTE_BUILD_ID || 'dev',
+      },
       lease: {
         ownerId: lease?.owner_id || null,
         expiresInMs: lease ? Math.max(0, lease.expires_at - now) : 0,
@@ -707,7 +738,7 @@ class App {
     const chatId = binding?.telegram_chat_id || null;
     const message = this.formatter.formatWarning(
       'Telegram Polling',
-      `Polling conflict detected ${conflictCount} time(s). Retrying in ${Math.max(1, Math.ceil(retryInMs / 1000))}s. Another bot consumer is likely using the same token.`,
+      `Polling conflict detected ${conflictCount} time(s). Retrying in ${Math.max(1, Math.ceil(retryInMs / 1000))}s. Alerting is now cooldown-limited to reduce spam while recovery runs.`,
     );
 
     try {
@@ -722,17 +753,26 @@ class App {
     retryInMs: number;
     pausedUntil: number;
     error: string;
+    recoveryBlockedForMs: number;
+    lastRecoveryError: string;
   }): void {
     this.auditEvent('telegram.polling_conflict', {
       conflictCount: event.conflictCount,
       retryInMs: event.retryInMs,
       pausedUntil: event.pausedUntil,
       error: event.error,
+      recoveryBlockedForMs: event.recoveryBlockedForMs,
+      lastRecoveryError: event.lastRecoveryError,
     });
 
     const threshold = Math.max(1, Number(config.get('telegram.pollingConflictAlertThreshold')) || 3);
-    if (event.conflictCount >= threshold && event.conflictCount > this.telegramConflictAlertedAtCount) {
+    const cooldownMs = Math.max(1000, Number(config.get('telegram.pollingConflictAlertCooldownMs')) || 300_000);
+    const now = Date.now();
+    const thresholdCrossed = this.telegramConflictAlertedAtCount < threshold && event.conflictCount >= threshold;
+    const cooldownElapsed = now - this.telegramConflictLastAlertAt >= cooldownMs;
+    if ((thresholdCrossed || cooldownElapsed) && event.conflictCount >= threshold) {
       this.telegramConflictAlertedAtCount = event.conflictCount;
+      this.telegramConflictLastAlertAt = now;
       void this.notifyOwnerAboutPollingConflict(event.conflictCount, event.retryInMs);
     }
   }
@@ -740,6 +780,7 @@ class App {
   handleTelegramPollingRecovered(event: { recoveredAt: number }): void {
     this.auditEvent('telegram.polling_recovered', event);
     this.telegramConflictAlertedAtCount = 0;
+    this.telegramConflictLastAlertAt = 0;
   }
 }
 

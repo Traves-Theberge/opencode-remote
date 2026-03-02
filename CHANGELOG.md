@@ -10,6 +10,13 @@ All notable changes to this project are documented in this file.
 
 ### Added
 
+- Deterministic Docker redeploy script: `scripts/docker-redeploy.sh` (`npm run docker:redeploy`).
+- Runtime fingerprint logging at startup (version/build-id/token fingerprint/mode summary).
+- Polling recovery diagnostics in status surfaces:
+  - reset cooldown timing
+  - last recovery error
+- Docker build fingerprint wiring:
+  - `OPENCODE_REMOTE_BUILD_ID` in `Dockerfile` and `docker-compose.yml`.
 - Docker runtime support:
   - `Dockerfile`
   - `docker-compose.yml`
@@ -25,6 +32,7 @@ All notable changes to this project are documented in this file.
 - Security redaction utility for audit/dead-letter storage: `src/security/redaction.ts`.
 - CLI security posture helper: `security rotate-token-check`.
 - Release notes for hardened release: `RELEASE_NOTES_v1.2.0.md`.
+- Patch release notes for polling/docker sync hardening: `RELEASE_NOTES_v1.2.1.md`.
 - Architecture diagram set under `docs/architecture/`:
   - system/context/container/component
   - interaction sequences
@@ -123,6 +131,9 @@ All notable changes to this project are documented in this file.
 - Help output is redesigned into a concise, task-oriented menu with command descriptions.
 - Telegram input normalization now maps plain shorthand (status/help/runs/sessions/diff/abort/pwd) to slash commands.
 - Telegram polling conflict handling now applies controlled backoff with degraded-state visibility.
+- Telegram polling conflict owner alerts are now cooldown-limited to reduce repeated notification spam.
+- Telegram polling startup now prepares session state (`deleteWebhook` + `close` with retry-after-aware cooldown handling).
+- Polling loop now enforces single in-flight cycle to avoid overlap and improve conflict stability.
 - Runtime `/status` output now includes transport health and polling conflict recovery timing.
 - SQLite schema now includes transport lease support (`transport_leases`) to protect polling ownership on shared DB deployments.
 - Webhook mode now fails fast unless `telegram.webhookSecret` is configured.
@@ -132,8 +143,8 @@ All notable changes to this project are documented in this file.
 - SQLite audit and dead-letter writes now redact token/secret/bearer-like values before persistence.
 - Removed dead code: `src/audit/logger.ts` and unused `OpenCodeAdapter.server` field.
 - Package versions bumped for release alignment:
-  - root `opencode-remote` -> `1.2.0`
-  - workspaces (`daemon`, `cli`, `tui`, `bridge`) -> `0.2.0`
+  - root `opencode-remote` -> `1.2.1`
+  - workspaces (`daemon`, `cli`, `tui`, `bridge`) -> `0.2.1`
 - `/opencode diagnostics` now includes runtime transport and lease status snapshot.
 - Documentation updated for prefix-optional command model and webhook-first production profile.
 - TSDoc coverage expanded across runtime, transport, bridge, and CLI/TUI entry modules.

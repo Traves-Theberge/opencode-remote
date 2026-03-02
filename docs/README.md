@@ -13,7 +13,7 @@
 - Security remediation closure log: `TOFIX.md`
 - Telegram dual-channel design: `docs/plans/2026-03-01-telegram-dual-channel-design.md`
 - Release history: `CHANGELOG.md`
-- Current release notes: `RELEASE_NOTES_v1.2.0.md`
+- Current release notes: `RELEASE_NOTES_v1.2.1.md`
 
 ## Documentation Maintenance Checklist (PR)
 

@@ -14,10 +14,17 @@ interface RuntimeStatus {
     state: string;
     pollingConflictCount: number;
     pollingPausedForMs: number;
+    recoveryBlockedForMs?: number;
+    lastPollingConflictAt?: number;
+    lastPollingRecoveryError?: string;
   };
   channels: {
     telegramEnabled: boolean;
     whatsappEnabled: boolean;
+  };
+  build?: {
+    version: string;
+    buildId: string;
   };
   lease: {
     ownerId: string | null;
@@ -84,8 +91,15 @@ export class CommandExecutor {
           `📂 CWD: ${context.directory || '(unset)'}`,
           `📡 Telegram: ${runtime.channels.telegramEnabled ? runtime.telegram.state : 'disabled'} (${runtime.telegram.mode})`,
           `📱 WhatsApp: ${runtime.channels.whatsappEnabled ? 'enabled' : 'disabled'}`,
+          runtime.build ? `🏷️ Build: ${runtime.build.version} (${runtime.build.buildId})` : '',
           runtime.telegram.pollingConflictCount > 0
             ? `⚠️ Telegram polling conflicts: ${runtime.telegram.pollingConflictCount} (retry in ${Math.ceil(runtime.telegram.pollingPausedForMs / 1000)}s)`
+            : '',
+          (runtime.telegram.recoveryBlockedForMs || 0) > 0
+            ? `⏳ Telegram reset cooldown: ${Math.ceil((runtime.telegram.recoveryBlockedForMs || 0) / 1000)}s`
+            : '',
+          runtime.telegram.lastPollingRecoveryError
+            ? `🛠️ Last polling recovery error: ${runtime.telegram.lastPollingRecoveryError}`
             : '',
           '',
           'Use `/help` for control commands.',

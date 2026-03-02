@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        OPENCODE_REMOTE_BUILD_ID: ${OPENCODE_REMOTE_BUILD_ID:-local}
     container_name: opencode-remote
     restart: unless-stopped
     environment:
@@ -15,6 +17,7 @@ services:
       TELEGRAM_POLLING_ENABLED: ${TELEGRAM_POLLING_ENABLED:-true}
       TELEGRAM_WEBHOOK_ENABLED: ${TELEGRAM_WEBHOOK_ENABLED:-false}
       WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
+      OPENCODE_REMOTE_BUILD_ID: ${OPENCODE_REMOTE_BUILD_ID:-local}
       XDG_CONFIG_HOME: /app/config
     volumes:
       - ./data:/app/data

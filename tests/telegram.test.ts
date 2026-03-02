@@ -113,9 +113,57 @@ test('uses webhook mode when both telegram delivery modes are enabled', async ()
   }
 });
 
+test('prepares polling session before starting polling mode', async () => {
+  const restore = withConfig({
+    'telegram.enabled': true,
+    'telegram.botToken': 'test-token',
+    'telegram.webhookEnabled': false,
+    'telegram.pollingEnabled': true,
+  });
+  try {
+    const transport = new TelegramTransportStub(async () => null);
+    await transport.start();
+
+    assert.equal(transport.startedPolling, true);
+    assert.ok(transport.apiCalls.some((call) => call.method === 'deleteWebhook'));
+    assert.ok(transport.apiCalls.some((call) => call.method === 'close'));
+  } finally {
+    restore();
+  }
+});
+
 test('normalizes plain telegram shorthand to slash commands', () => {
   const transport = new TelegramTransportStub(async () => null);
   assert.equal(transport.normalizeBody('status'), '/status');
   assert.equal(transport.normalizeBody('sessions'), '/session list');
   assert.equal(transport.normalizeBody('help'), '/help');
+});
+
+test('polling loop does not overlap concurrent getUpdates requests', async () => {
+  class PollingProbe extends TelegramTransport {
+    current = 0;
+    maxConcurrent = 0;
+    calls = 0;
+
+    constructor() {
+      super(async () => null);
+    }
+
+    async pollOnce() {
+      this.calls += 1;
+      this.current += 1;
+      this.maxConcurrent = Math.max(this.maxConcurrent, this.current);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      this.current -= 1;
+    }
+  }
+
+  const probe = new PollingProbe();
+  probe.running = true;
+  probe.startPolling();
+  await new Promise((resolve) => setTimeout(resolve, 950));
+  await probe.stop();
+
+  assert.ok(probe.calls >= 1);
+  assert.equal(probe.maxConcurrent, 1);
 });

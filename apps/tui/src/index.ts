@@ -88,7 +88,8 @@ function renderDashboard(): string {
     `Owner: ${cfg.ownerNumber || '(not configured)'}`,
     `Database: ${cfg.storageDbPath}`,
     `Telegram: ${cfg.telegramEnabled ? cfg.telegramMode : 'disabled'}${cfg.telegramPollingState === 'degraded' ? ' [DEGRADED]' : ''}`,
-    `Polling health: ${cfg.telegramPollingState} conflicts=${cfg.telegramPollingConflictCount} retry_in=${Math.max(0, Math.ceil(cfg.telegramPollingRetryInMs / 1000))}s`,
+    `Polling health: ${cfg.telegramPollingState} conflicts=${cfg.telegramPollingConflictCount} retry_in=${Math.max(0, Math.ceil(cfg.telegramPollingRetryInMs / 1000))}s reset_cooldown=${Math.max(0, Math.ceil(cfg.telegramPollingRecoveryBlockedInMs / 1000))}s`,
+    cfg.telegramPollingLastRecoveryError ? `Polling recovery error: ${cfg.telegramPollingLastRecoveryError}` : '',
     `Rows: users=${stats.users} runs=${stats.runs} audit=${stats.audit} dead=${stats.deadLetters}`,
     '',
     onboardingNeeded

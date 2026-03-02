@@ -89,6 +89,14 @@ npm run build
 
 `verify` runs lint, typecheck, and tests with structured step logging for a single-source quality gate.
 
+Deterministic Docker redeploy (recommended after code changes):
+
+```bash
+npm run docker:redeploy
+```
+
+This performs a no-cache image rebuild and force-recreates the `remote` service to prevent stale code/image mismatches.
+
 ## Initial Provisioning
 
 Set owner phone number:
@@ -148,6 +156,9 @@ Message dedupe uses inbound transport message/update IDs in SQLite `messages` ta
   - `telegram.webhookSecret` (non-empty)
 - Webhook payload guard: oversized payloads are rejected (HTTP 413) using `telegram.webhookMaxBodyBytes`.
 - Persistent conflicts trigger owner alerting and `telegram.polling_conflict` audit events.
+- Polling conflict owner alerts are cooldown-limited via `telegram.pollingConflictAlertCooldownMs`.
+- Runtime status now includes reset cooldown timing and last recovery error when Telegram returns retry-after limits.
+- Runtime startup logs include a deployment fingerprint (version/build-id/mode/token fingerprint suffix) to confirm Docker is running current code.
 
 ### Telegram group chat policy
 

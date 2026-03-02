@@ -81,9 +81,11 @@ cp .env.docker.example .env
 4) Start:
 
 ```bash
-docker compose up --build -d
+npm run docker:redeploy
 docker compose logs -f remote
 ```
+
+This redeploy command forces a no-cache image build and container recreate so Docker always runs the latest source changes.
 
 Webhook-first production profile:
 
@@ -96,6 +98,7 @@ Token hygiene:
 - If a token is exposed, rotate it in `@BotFather` and update `.env`.
 - Polling with one bot token supports one active consumer.
 - Run posture check: `npm run cli -- security rotate-token-check`
+- Polling conflict alerts are cooldown-limited to avoid repeated spam during recovery windows.
 
 Install from curl (fresh local machine):
 
@@ -149,6 +152,7 @@ TELEGRAM_BOT_TOKEN=replace-with-real-token
 TELEGRAM_OWNER_USER_ID=123456789
 SECURITY_OWNER_NUMBER=+15551234567
 STORAGE_DB_PATH=./data/opencode-remote.db
+OPENCODE_REMOTE_BUILD_ID=local-dev
 ```
 
 Notes:

@@ -1,6 +1,6 @@
 {
   "name": "opencode-remote",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "OpenCode Remote Control via WhatsApp and Telegram",
   "private": true,
   "type": "module",
@@ -16,6 +16,7 @@
     "dev": "npm --workspace @opencode-remote/daemon run dev",
     "cli": "npm --workspace @opencode-remote/cli run start --",
     "tui": "npm --workspace @opencode-remote/tui run start",
+    "docker:redeploy": "bash scripts/docker-redeploy.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:workspaces": "npm --workspace @opencode-remote/daemon run typecheck && npm --workspace @opencode-remote/cli run typecheck && npm --workspace @opencode-remote/bridge run typecheck",
     "test": "tsx --test tests/*.test.ts",

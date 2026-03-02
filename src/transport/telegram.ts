@@ -64,12 +64,25 @@ export class TelegramTransport {
   onMessage: (event: TelegramInboundEvent) => Promise<string | null>;
   onDeadLetter: ((event: TelegramDeadLetter) => Promise<void>) | null;
   onPollingConflict:
-    | ((event: { conflictCount: number; retryInMs: number; pausedUntil: number; error: string }) => void)
+    | ((event: {
+        conflictCount: number;
+        retryInMs: number;
+        pausedUntil: number;
+        error: string;
+        recoveryBlockedForMs: number;
+        lastRecoveryError: string;
+      }) => void)
     | null;
   onPollingRecovered: ((event: { recoveredAt: number }) => void) | null;
   running: boolean;
   offset: number;
-  poller: NodeJS.Timeout | null;
+  pollingInFlight: boolean;
+  pollLoopTask: Promise<void> | null;
+  pollingRecoveryInFlight: boolean;
+  lastPollingRecoveryAt: number;
+  lastPollingConflictAt: number;
+  lastPollingRecoveryError: string;
+  recoveryBlockedUntil: number;
   webhookServer: http.Server | null;
   pollingPausedUntil: number;
   pollingConflictCount: number;
@@ -83,6 +96,8 @@ export class TelegramTransport {
         retryInMs: number;
         pausedUntil: number;
         error: string;
+        recoveryBlockedForMs: number;
+        lastRecoveryError: string;
       }) => void;
       onPollingRecovered?: (event: { recoveredAt: number }) => void;
     } = {},
@@ -93,7 +108,13 @@ export class TelegramTransport {
     this.onPollingRecovered = options.onPollingRecovered || null;
     this.running = false;
     this.offset = 0;
-    this.poller = null;
+    this.pollingInFlight = false;
+    this.pollLoopTask = null;
+    this.pollingRecoveryInFlight = false;
+    this.lastPollingRecoveryAt = 0;
+    this.lastPollingConflictAt = 0;
+    this.lastPollingRecoveryError = '';
+    this.recoveryBlockedUntil = 0;
     this.webhookServer = null;
     this.pollingPausedUntil = 0;
     this.pollingConflictCount = 0;
@@ -141,6 +162,7 @@ export class TelegramTransport {
     } else if (webhookEnabled) {
       await this.startWebhook();
     } else if (pollingEnabled) {
+      await this.preparePollingSession();
       this.startPolling();
     } else {
       logger.warn('Telegram transport is enabled but no delivery mode is enabled');
@@ -218,21 +240,83 @@ export class TelegramTransport {
   }
 
   startPolling() {
-    if (this.poller) {
-      clearInterval(this.poller);
-      this.poller = null;
+    if (this.pollLoopTask) {
+      return;
     }
 
-    const interval = Number(config.get('telegram.pollingIntervalMs')) || 1200;
-    this.poller = setInterval(() => {
-      this.pollOnce().catch((error) => {
-        logger.warn({ err: error }, 'Telegram polling iteration failed');
-      });
-    }, interval);
+    const intervalMs = Math.max(250, Number(config.get('telegram.pollingIntervalMs')) || 1200);
+    const timeoutSec = Math.max(1, Number(config.get('telegram.pollingTimeoutSec')) || 30);
+    logger.info({ intervalMs, timeoutSec }, 'Telegram polling loop starting');
+    this.pollLoopTask = (async () => {
+      while (this.running) {
+        if (this.pollingInFlight) {
+          await this.sleep(intervalMs);
+          continue;
+        }
 
-    this.pollOnce().catch((error) => {
-      logger.warn({ err: error }, 'Initial Telegram polling failed');
+        this.pollingInFlight = true;
+        try {
+          await this.pollOnce();
+        } catch (error) {
+          logger.warn({ err: error }, 'Telegram polling iteration failed');
+          await this.sleep(intervalMs);
+        } finally {
+          this.pollingInFlight = false;
+        }
+
+        if (!this.running) {
+          break;
+        }
+
+        await this.sleep(intervalMs);
+      }
+    })().finally(() => {
+      this.pollLoopTask = null;
     });
+  }
+
+  async preparePollingSession() {
+    logger.info('Preparing Telegram polling session state');
+    await this.api('deleteWebhook', { drop_pending_updates: false }).catch((error) => {
+      logger.warn({ err: error }, 'Failed to clear Telegram webhook before polling');
+    });
+
+    const maxAttempts = Math.max(1, Number(config.get('telegram.pollingCloseMaxAttempts')) || 2);
+    let closed = false;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await this.api('close', {});
+        closed = true;
+        break;
+      } catch (error) {
+        const retryAfterSec = this.extractRetryAfterSeconds(error);
+        const waitMs = retryAfterSec > 0 ? retryAfterSec * 1000 : attempt * 1500;
+        this.lastPollingRecoveryError = String(error instanceof Error ? error.message : error);
+        if (retryAfterSec > 0) {
+          this.recoveryBlockedUntil = Date.now() + waitMs;
+          this.pollingPausedUntil = Math.max(this.pollingPausedUntil, this.recoveryBlockedUntil);
+        }
+        logger.warn({ err: error, attempt, waitMs }, 'Telegram close failed during polling session prep');
+        if (retryAfterSec > 0) {
+          break;
+        }
+        await this.sleep(waitMs);
+      }
+    }
+
+    if (closed) {
+      this.lastPollingRecoveryError = '';
+      this.recoveryBlockedUntil = 0;
+      logger.info('Prepared Telegram polling session via close/deleteWebhook');
+    } else {
+      logger.warn(
+        {
+          blockedForMs: Math.max(0, this.recoveryBlockedUntil - Date.now()),
+          lastError: this.lastPollingRecoveryError || null,
+        },
+        'Polling session prep could not close prior consumers; continuing with conflict backoff handling',
+      );
+    }
   }
 
   /**
@@ -240,6 +324,10 @@ export class TelegramTransport {
    */
   async pollOnce() {
     if (!this.running) {
+      return;
+    }
+
+    if (Date.now() < this.recoveryBlockedUntil) {
       return;
     }
 
@@ -258,8 +346,12 @@ export class TelegramTransport {
       if (this.pollingConflictCount > 0 && this.onPollingRecovered) {
         this.onPollingRecovered({ recoveredAt: Date.now() });
       }
+      if (this.pollingConflictCount > 0) {
+        logger.info({ conflictCount: this.pollingConflictCount }, 'Telegram polling recovered');
+      }
       this.pollingConflictCount = 0;
       this.pollingPausedUntil = 0;
+      this.lastPollingRecoveryError = '';
     } catch (error) {
       if (this.isPollingConflict(error)) {
         this.handlePollingConflict(error);
@@ -551,6 +643,7 @@ export class TelegramTransport {
 
   handlePollingConflict(error: unknown) {
     this.pollingConflictCount += 1;
+    this.lastPollingConflictAt = Date.now();
     const backoffMs = Math.min(90_000, 5_000 * Math.max(1, this.pollingConflictCount));
     this.pollingPausedUntil = Date.now() + backoffMs;
     if (this.onPollingConflict) {
@@ -559,6 +652,8 @@ export class TelegramTransport {
         retryInMs: backoffMs,
         pausedUntil: this.pollingPausedUntil,
         error: String(error instanceof Error ? error.message : error),
+        recoveryBlockedForMs: Math.max(0, this.recoveryBlockedUntil - Date.now()),
+        lastRecoveryError: this.lastPollingRecoveryError,
       });
     }
     logger.warn(
@@ -566,9 +661,76 @@ export class TelegramTransport {
         err: error,
         conflictCount: this.pollingConflictCount,
         retryInMs: backoffMs,
+        offset: this.offset,
       },
       'Telegram polling conflict detected; pausing polling',
     );
+
+    if (this.pollingConflictCount >= 3) {
+      void this.attemptPollingRecovery();
+    }
+  }
+
+  async attemptPollingRecovery() {
+    const now = Date.now();
+    if (this.pollingRecoveryInFlight) {
+      return;
+    }
+    const minIntervalMs = Math.max(1000, Number(config.get('telegram.pollingRecoveryMinIntervalMs')) || 60_000);
+    if (now - this.lastPollingRecoveryAt < minIntervalMs) {
+      return;
+    }
+
+    if (now < this.recoveryBlockedUntil) {
+      return;
+    }
+
+    this.pollingRecoveryInFlight = true;
+    this.lastPollingRecoveryAt = now;
+    try {
+      await this.api('deleteWebhook', { drop_pending_updates: false }).catch(() => null);
+
+      let closed = false;
+      const maxAttempts = Math.max(1, Number(config.get('telegram.pollingCloseMaxAttempts')) || 2);
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          await this.api('close', {});
+          closed = true;
+          break;
+        } catch (error) {
+          const retryAfterSec = this.extractRetryAfterSeconds(error);
+          const waitMs = retryAfterSec > 0 ? retryAfterSec * 1000 : attempt * 1500;
+          this.lastPollingRecoveryError = String(error instanceof Error ? error.message : error);
+          if (retryAfterSec > 0) {
+            this.recoveryBlockedUntil = Date.now() + waitMs;
+            this.pollingPausedUntil = Math.max(this.pollingPausedUntil, this.recoveryBlockedUntil);
+          }
+          logger.warn(
+            { err: error, attempt, waitMs },
+            'Telegram close failed during polling recovery; retrying',
+          );
+          if (retryAfterSec > 0) {
+            break;
+          }
+          await this.sleep(waitMs);
+        }
+      }
+
+      if (closed) {
+        this.lastPollingRecoveryError = '';
+        this.recoveryBlockedUntil = 0;
+        logger.warn('Telegram polling recovery requested via close/deleteWebhook');
+      }
+      this.pollingPausedUntil = Date.now() + 5000;
+    } finally {
+      this.pollingRecoveryInFlight = false;
+    }
+  }
+
+  extractRetryAfterSeconds(error: unknown): number {
+    const message = String(error instanceof Error ? error.message : error);
+    const match = /"retry_after"\s*:\s*(\d+)/i.exec(message);
+    return match ? Number(match[1]) : 0;
   }
 
   /**
@@ -582,6 +744,9 @@ export class TelegramTransport {
       running: this.running,
       pollingConflictCount: this.pollingConflictCount,
       pollingPausedForMs: pausedForMs,
+      recoveryBlockedForMs: Math.max(0, this.recoveryBlockedUntil - Date.now()),
+      lastPollingConflictAt: this.lastPollingConflictAt,
+      lastPollingRecoveryError: this.lastPollingRecoveryError,
       state: pausedForMs > 0 ? 'degraded' : 'healthy',
     };
   }
@@ -601,10 +766,15 @@ export class TelegramTransport {
 
   async stop() {
     this.running = false;
+    this.pollingInFlight = false;
 
-    if (this.poller) {
-      clearInterval(this.poller);
-      this.poller = null;
+    if (this.pollLoopTask) {
+      try {
+        await this.pollLoopTask;
+      } catch {
+        // ignore shutdown errors
+      }
+      this.pollLoopTask = null;
     }
 
     if (this.webhookServer) {
