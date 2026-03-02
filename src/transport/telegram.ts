@@ -645,7 +645,7 @@ export class TelegramTransport {
   }
 
   escapeMarkdownV2Text(text: string): string {
-    return String(text || '').replace(/([_\*\[\]\(\)~`>#+\-=|{}.!\\])/g, '\\$1');
+    return String(text || '').replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
   }
 
   escapeMarkdownV2Code(text: string): string {
