@@ -9,8 +9,8 @@ export class MessageFormatter {
   formatPromptResult({ sessionId, messageId, response }: { sessionId: string; messageId: string; response: string }) {
     const cleaned = this.cleanPromptOutput(response || '(no response)');
     const body = this.truncateText(cleaned, {
-      maxLines: 28,
-      maxChars: 1800,
+      maxLines: 80,
+      maxChars: 4000,
     });
 
     return [
@@ -31,8 +31,8 @@ export class MessageFormatter {
 
   formatShellResult({ command, output, durationMs }: { command: string; output: string; durationMs: number }) {
     const body = this.truncateText(output || '(no output)', {
-      maxLines: 36,
-      maxChars: 2200,
+      maxLines: 80,
+      maxChars: 4000,
     });
     const seconds = (durationMs / 1000).toFixed(1);
 
@@ -54,8 +54,8 @@ export class MessageFormatter {
 
   formatFileReadResult({ path, content }: { path: string; content: string }) {
     const body = this.truncateText(content || '(empty file)', {
-      maxLines: 45,
-      maxChars: 2800,
+      maxLines: 100,
+      maxChars: 4000,
     });
     return [
       this.header('File Read'),
@@ -111,7 +111,7 @@ export class MessageFormatter {
       return [this.header('List Files'), '', `📂 No files under \`${basePath}\`.`].join('\n');
     }
 
-    const lines = items.slice(0, 40).map((item) => {
+    const lines = items.slice(0, 80).map((item) => {
       const name = item.name || item.path || '(unknown)';
       const isDir = item.type === 'directory' || item.dir === true;
       return `• ${isDir ? '📁' : '📄'} ${name}`;
@@ -122,8 +122,7 @@ export class MessageFormatter {
       '',
       `📂 Path: \`${basePath}\``,
       ...lines,
-      '',
-      items.length > 40 ? '… output trimmed for WhatsApp readability' : '',
+      items.length > 80 ? `… and ${items.length - 80} more` : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -134,15 +133,14 @@ export class MessageFormatter {
       return [this.header('Find Files'), '', `🔍 No files matched \`${query}\`.`].join('\n');
     }
 
-    const lines = items.slice(0, 40).map((item) => `• ${item}`);
+    const lines = items.slice(0, 80).map((item) => `• ${item}`);
     return [
       this.header('Find Files'),
       '',
       `🔍 Query: \`${query}\``,
       `✅ Matches: ${items.length}`,
       ...lines,
-      '',
-      items.length > 40 ? '… output trimmed for WhatsApp readability' : '',
+      items.length > 80 ? `… and ${items.length - 80} more` : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -159,7 +157,7 @@ export class MessageFormatter {
       return [this.header('Find Text'), '', `🔎 No text matched \`${pattern}\`.`].join('\n');
     }
 
-    const lines = matches.slice(0, 25).map((match) => {
+    const lines = matches.slice(0, 50).map((match) => {
       const file = match?.path?.text || '(unknown file)';
       const line = match?.line_number || '?';
       const text = (match?.lines?.text || '').trim();
@@ -172,8 +170,7 @@ export class MessageFormatter {
       `🔎 Pattern: \`${pattern}\``,
       `✅ Matches: ${matches.length}`,
       ...lines,
-      '',
-      matches.length > 25 ? '… output trimmed for WhatsApp readability' : '',
+      matches.length > 50 ? `… and ${matches.length - 50} more` : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -224,8 +221,8 @@ export class MessageFormatter {
     const hh = String(created.getHours()).padStart(2, '0');
     const mm = String(created.getMinutes()).padStart(2, '0');
     const raw = this.truncateText(item.raw, {
-      maxLines: 80,
-      maxChars: 5000,
+      maxLines: 150,
+      maxChars: 4000,
     });
 
     return [
@@ -299,7 +296,7 @@ export class MessageFormatter {
     ].join('\n');
   }
 
-  truncateText(text: string, { maxLines = 40, maxChars = 2400 }: { maxLines?: number; maxChars?: number } = {}) {
+  truncateText(text: string, { maxLines = 80, maxChars = 4000 }: { maxLines?: number; maxChars?: number } = {}) {
     const normalized = String(text || '').trim();
     if (!normalized) {
       return '(no output)';
@@ -320,7 +317,7 @@ export class MessageFormatter {
     }
 
     if (truncated) {
-      clipped += '\n\n… output trimmed for WhatsApp readability';
+      clipped += '\n\n… (output truncated)';
     }
 
     return clipped;

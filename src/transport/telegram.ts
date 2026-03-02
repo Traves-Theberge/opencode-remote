@@ -553,11 +553,12 @@ export class TelegramTransport {
       return;
     }
 
-    const chunks = this.chunkMessage(String(text || ''), 3500);
+    const chunks = this.chunkMessage(String(text || ''), 4096);
     for (const chunk of chunks) {
       await this.api('sendMessage', {
         chat_id: chatId,
         text: chunk,
+        parse_mode: 'HTML',
         reply_markup: DEFAULT_KEYBOARD,
       });
     }
