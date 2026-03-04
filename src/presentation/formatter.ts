@@ -6,7 +6,7 @@ export class MessageFormatter {
     return `OpenCode Remote - ${mode} - ${hh}:${mm}`;
   }
 
-  formatPromptResult({ sessionId, messageId, response }: { sessionId: string; messageId: string; response: string }) {
+  formatPromptResult({ sessionId, response }: { sessionId: string; messageId: string; response: string }) {
     const cleaned = this.cleanPromptOutput(response || '(no response)');
     const body = this.truncateText(cleaned, {
       maxLines: 80,
@@ -17,17 +17,8 @@ export class MessageFormatter {
       'Done',
       '',
       `Session: ${sessionId}`,
-      `Ref: ${messageId}`,
       '',
       body,
-      '',
-      'Next:',
-      '1) continue with this task',
-      '2) /diff',
-      '3) /summarize',
-      '',
-      `Run: ${sessionId}`,
-      'Use /get <runId> for full output.',
     ].join('\n');
   }
 
@@ -45,11 +36,6 @@ export class MessageFormatter {
       `Duration: ${seconds}s`,
       '',
       body,
-      '',
-      'Next:',
-      '1) /diff',
-      '2) /run <another command>',
-      '3) explain this output and what to fix',
     ].join('\n');
   }
 
@@ -191,10 +177,6 @@ export class MessageFormatter {
       `Diff - ${diff.length} files changed`,
       '',
       ...preview,
-      '',
-      'Next:',
-      '1) summarize these changes',
-      '2) review these changes for risks',
     ].join('\n');
   }
 
@@ -202,12 +184,8 @@ export class MessageFormatter {
     return `${mode} - ${text}`;
   }
 
-  formatWithRunId(text: string, runId: string | null): string {
-    if (!runId) {
-      return text;
-    }
-
-    return [text, '', `Run: ${runId}`, 'Use /get <runId> for full output.'].join('\n');
+  formatWithRunId(text: string, _runId: string | null): string {
+    return text;
   }
 
   formatRunLookup(item: { id: string; commandType: string; createdAt: number; raw: string } | null) {
@@ -226,7 +204,7 @@ export class MessageFormatter {
     return [
       'Run Lookup',
       '',
-      `Run: ${item.id}`,
+      `ID: ${item.id}`,
       `Type: ${item.commandType}`,
       `Created: ${hh}:${mm}`,
       '',

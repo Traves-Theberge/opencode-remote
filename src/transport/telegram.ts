@@ -679,6 +679,11 @@ export class TelegramTransport {
 
     return lines
       .map((line) => {
+        const heading = this.parseHeading(line);
+        if (heading) {
+          return `*${this.escapeMarkdownV2Text(heading)}*`;
+        }
+
         const inlineCodes: string[] = [];
         const withPlaceholders = line.replace(/`([^`\n]+)`/g, (_whole, code: string) => {
           const id = inlineCodes.length;
@@ -686,11 +691,44 @@ export class TelegramTransport {
           return `@@CODE${id}@@`;
         });
 
-        let escaped = this.escapeMarkdownV2Text(withPlaceholders);
+        const styles: Array<{ kind: 'bold' | 'italic'; text: string }> = [];
+        const withStylePlaceholders = withPlaceholders
+          .replace(/\*\*([^*\n][\s\S]*?)\*\*/g, (_whole, content: string) => {
+            const id = styles.length;
+            styles.push({ kind: 'bold', text: content });
+            return `@@STYLE${id}@@`;
+          })
+          .replace(/__([^_\n][\s\S]*?)__/g, (_whole, content: string) => {
+            const id = styles.length;
+            styles.push({ kind: 'bold', text: content });
+            return `@@STYLE${id}@@`;
+          })
+          .replace(/\*([^*\n][\s\S]*?)\*/g, (_whole, content: string) => {
+            const id = styles.length;
+            styles.push({ kind: 'italic', text: content });
+            return `@@STYLE${id}@@`;
+          })
+          .replace(/_([^_\n][\s\S]*?)_/g, (_whole, content: string) => {
+            const id = styles.length;
+            styles.push({ kind: 'italic', text: content });
+            return `@@STYLE${id}@@`;
+          });
+
+        let escaped = this.escapeMarkdownV2Text(withStylePlaceholders);
         escaped = escaped.replace(/@@CODE(\d+)@@/g, (_whole, idxText: string) => {
           const idx = Number(idxText);
           const code = inlineCodes[idx] || '';
           return `\`${this.escapeMarkdownV2Code(code)}\``;
+        });
+
+        escaped = escaped.replace(/@@STYLE(\d+)@@/g, (_whole, idxText: string) => {
+          const idx = Number(idxText);
+          const style = styles[idx] || { kind: 'bold' as const, text: '' };
+          const content = this.escapeMarkdownV2Text(style.text);
+          if (style.kind === 'italic') {
+            return `_${content}_`;
+          }
+          return `*${content}*`;
         });
 
         escaped = escaped.replace(/@@BLOCK(\d+)@@/g, (_whole, idxText: string) => {
@@ -708,6 +746,11 @@ export class TelegramTransport {
         return escaped;
       })
       .join('\n');
+  }
+
+  parseHeading(line: string): string {
+    const match = /^#{1,6}\s+(.+)$/.exec(String(line || '').trim());
+    return match ? String(match[1] || '') : '';
   }
 
   shouldBoldLine(line: string): boolean {
