@@ -247,10 +247,10 @@ export class CommandRouter {
       return this.toParsed('model status', []);
     }
     if (action === 'list' || action === 'providers') {
-      return this.toParsed('model list', []);
+      return this.toParsed('model list', [parts[1] || '', parts[2] || '']);
     }
     if (action === 'set') {
-      return this.toParsed('model set', [parts[1] || '', parts[2] || '']);
+      return this.toParsed('model set', [parts[1] || '', parts.slice(2).join(' ').trim()]);
     }
     return this.toParsed('help', []);
   }
@@ -508,8 +508,15 @@ export class CommandRouter {
     return { type: 'model.status' };
   }
 
-  async handleModelList() {
-    return { type: 'model.list' };
+  async handleModelList(args: string[]) {
+    const rawA = String(args[0] || '').trim();
+    const rawB = String(args[1] || '').trim();
+    const a = rawA.toLowerCase();
+    const b = rawB.toLowerCase();
+    const verbose = a === 'full' || a === 'raw' || b === 'full' || b === 'raw';
+    const providerId =
+      a && a !== 'full' && a !== 'raw' ? rawA : b && b !== 'full' && b !== 'raw' ? rawB : '';
+    return { type: 'model.list', verbose, providerId };
   }
 
   async handleModelSet(args: string[], session: SessionState): Promise<{ type: string; providerId: string; modelId: string } | string> {
@@ -752,7 +759,7 @@ Execution:
 • /permission <permissionId> <once|always|reject> — permission response
 
 OpenCode advanced:
-• /model status | /model list | /model set <provider> <model>
+• /model status | /model list [provider] [full] | /model set <provider> <model>
 • /tools ids | /tools list [provider] [model]
 • /mcp status | /mcp add <name> <command> | /mcp connect <server> | /mcp disconnect <server>
 • /skills list

@@ -3,7 +3,7 @@ export class MessageFormatter {
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, '0');
     const mm = String(now.getMinutes()).padStart(2, '0');
-    return `🟢 OpenCode Remote · ${mode} · ${hh}:${mm}`;
+    return `OpenCode Remote - ${mode} - ${hh}:${mm}`;
   }
 
   formatPromptResult({ sessionId, messageId, response }: { sessionId: string; messageId: string; response: string }) {
@@ -14,18 +14,20 @@ export class MessageFormatter {
     });
 
     return [
-      this.header('Response'),
+      'Done',
       '',
-      '✅ Done',
-      `🧵 Session: \`${sessionId}\``,
-      `✉️ Ref: \`${messageId}\``,
+      `Session: ${sessionId}`,
+      `Ref: ${messageId}`,
       '',
       body,
       '',
-      'Next',
-      '1) `continue with this task`',
-      '2) `/diff`',
-      '3) `/summarize`',
+      'Next:',
+      '1) continue with this task',
+      '2) /diff',
+      '3) /summarize',
+      '',
+      `Run: ${sessionId}`,
+      'Use /get <runId> for full output.',
     ].join('\n');
   }
 
@@ -37,18 +39,17 @@ export class MessageFormatter {
     const seconds = (durationMs / 1000).toFixed(1);
 
     return [
-      this.header('Shell'),
+      'Shell - Command completed',
       '',
-      '✅ Command completed',
-      `💻 Command: \`${command}\``,
-      `⏱ Duration: ${seconds}s`,
+      `Command: ${command}`,
+      `Duration: ${seconds}s`,
       '',
       body,
       '',
-      'Next',
-      '1) `/diff`',
-      '2) `/run <another command>`',
-      '3) `explain this output and what to fix`',
+      'Next:',
+      '1) /diff',
+      '2) /run <another command>',
+      '3) explain this output and what to fix',
     ].join('\n');
   }
 
@@ -58,9 +59,9 @@ export class MessageFormatter {
       maxChars: 4000,
     });
     return [
-      this.header('File Read'),
+      'File Read',
       '',
-      `📄 Path: \`${path}\``,
+      `Path: ${path}`,
       '',
       body,
     ].join('\n');
@@ -68,28 +69,27 @@ export class MessageFormatter {
 
   formatSessionList(sessions: Array<{ id?: string; title?: string; status?: string }> | null | undefined) {
     if (!Array.isArray(sessions) || sessions.length === 0) {
-      return [this.header('Sessions'), '', '📚 No sessions found.'].join('\n');
+      return 'Sessions - No sessions found.';
     }
 
     const lines = sessions.slice(0, 20).map((session) => {
       const title = session.title || '(untitled)';
       const status = session.status || 'unknown';
-      return `• \`${session.id}\` · ${title} · ${status}`;
+      return `- ${session.id}: ${title} (${status})`;
     });
 
     return [
-      this.header('Sessions'),
+      `Sessions (${sessions.length} found)`,
       '',
-      `📚 Found ${sessions.length} session(s)`,
       ...lines,
       '',
-      'Tip: use `/session abort <id>` to stop one.',
+      'Tip: use /session abort <id> to stop one.',
     ].join('\n');
   }
 
   formatSessionStatus(status: { state?: string; status?: string; mode?: string; running?: boolean; id?: string } | null | undefined, sessionId: string | null | undefined) {
     if (!status) {
-      return [this.header('Session Status'), '', 'ℹ️ No session status available.'].join('\n');
+      return 'Session Status - No session status available.';
     }
 
     const state = status.state || status.status || 'unknown';
@@ -97,32 +97,31 @@ export class MessageFormatter {
     const running = status.running ? 'yes' : 'no';
 
     return [
-      this.header('Session Status'),
+      'Session Status',
       '',
-      `🧵 Session: \`${sessionId || status.id || '(unknown)'}\``,
-      `📌 State: ${state}`,
-      `⚙️ Mode: ${mode}`,
-      `🏃 Running: ${running}`,
+      `Session: ${sessionId || status.id || '(unknown)'}`,
+      `State: ${state}`,
+      `Mode: ${mode}`,
+      `Running: ${running}`,
     ].join('\n');
   }
 
   formatFileList(items: Array<{ name?: string; path?: string; type?: string; dir?: boolean }> | null | undefined, basePath = '.') {
     if (!Array.isArray(items) || items.length === 0) {
-      return [this.header('List Files'), '', `📂 No files under \`${basePath}\`.`].join('\n');
+      return `List Files - No files under ${basePath}.`;
     }
 
     const lines = items.slice(0, 80).map((item) => {
       const name = item.name || item.path || '(unknown)';
       const isDir = item.type === 'directory' || item.dir === true;
-      return `• ${isDir ? '📁' : '📄'} ${name}`;
+      return `- ${isDir ? '[dir]' : '[file]'} ${name}`;
     });
 
     return [
-      this.header('List Files'),
+      `List Files - ${basePath}`,
       '',
-      `📂 Path: \`${basePath}\``,
       ...lines,
-      items.length > 80 ? `… and ${items.length - 80} more` : '',
+      items.length > 80 ? `... and ${items.length - 80} more` : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -130,17 +129,17 @@ export class MessageFormatter {
 
   formatFindFilesResult(query: string, items: string[] | null | undefined) {
     if (!Array.isArray(items) || items.length === 0) {
-      return [this.header('Find Files'), '', `🔍 No files matched \`${query}\`.`].join('\n');
+      return `Find Files - No files matched ${query}.`;
     }
 
-    const lines = items.slice(0, 80).map((item) => `• ${item}`);
+    const lines = items.slice(0, 80).map((item) => `- ${item}`);
     return [
-      this.header('Find Files'),
+      `Find Files - ${query}`,
       '',
-      `🔍 Query: \`${query}\``,
-      `✅ Matches: ${items.length}`,
+      `Matches: ${items.length}`,
+      '',
       ...lines,
-      items.length > 80 ? `… and ${items.length - 80} more` : '',
+      items.length > 80 ? `... and ${items.length - 80} more` : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -154,23 +153,23 @@ export class MessageFormatter {
       | undefined,
   ) {
     if (!Array.isArray(matches) || matches.length === 0) {
-      return [this.header('Find Text'), '', `🔎 No text matched \`${pattern}\`.`].join('\n');
+      return `Find Text - No text matched ${pattern}.`;
     }
 
     const lines = matches.slice(0, 50).map((match) => {
       const file = match?.path?.text || '(unknown file)';
       const line = match?.line_number || '?';
       const text = (match?.lines?.text || '').trim();
-      return `• ${file}:${line} — ${text}`;
+      return `- ${file}:${line}: ${text}`;
     });
 
     return [
-      this.header('Find Text'),
+      `Find Text - ${pattern}`,
       '',
-      `🔎 Pattern: \`${pattern}\``,
-      `✅ Matches: ${matches.length}`,
+      `Matches: ${matches.length}`,
+      '',
       ...lines,
-      matches.length > 50 ? `… and ${matches.length - 50} more` : '',
+      matches.length > 50 ? `... and ${matches.length - 50} more` : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -178,30 +177,29 @@ export class MessageFormatter {
 
   formatDiffResult(diff: Array<{ path?: string; file?: string; additions?: number; deletions?: number }> | null | undefined) {
     if (!Array.isArray(diff) || diff.length === 0) {
-      return [this.header('Diff'), '', '🧩 No diffs found.'].join('\n');
+      return 'Diff - No changes found.';
     }
 
     const preview = diff.slice(0, 20).map((entry) => {
       const file = entry?.path || entry?.file || '(unknown file)';
       const additions = entry?.additions ?? '?';
       const deletions = entry?.deletions ?? '?';
-      return `• ${file} (+${additions} / -${deletions})`;
+      return `- ${file} (+${additions} / -${deletions})`;
     });
 
     return [
-      this.header('Diff'),
+      `Diff - ${diff.length} files changed`,
       '',
-      `🧩 Files changed: ${diff.length}`,
       ...preview,
       '',
-      'Next',
-      '1) `summarize these changes`',
-      '2) `review these changes for risks`',
+      'Next:',
+      '1) summarize these changes',
+      '2) review these changes for risks',
     ].join('\n');
   }
 
   formatSuccess(mode: string, text: string): string {
-    return [this.header(mode), '', `✅ ${text}`].join('\n');
+    return `${mode} - ${text}`;
   }
 
   formatWithRunId(text: string, runId: string | null): string {
@@ -209,12 +207,12 @@ export class MessageFormatter {
       return text;
     }
 
-    return [text, '', `🆔 Run: \`${runId}\``, 'Use `/get <runId>` for full output.'].join('\n');
+    return [text, '', `Run: ${runId}`, 'Use /get <runId> for full output.'].join('\n');
   }
 
   formatRunLookup(item: { id: string; commandType: string; createdAt: number; raw: string } | null) {
     if (!item) {
-      return [this.header('Run Lookup'), '', '❌ Run ID not found.'].join('\n');
+      return 'Run Lookup - Run ID not found.';
     }
 
     const created = new Date(item.createdAt);
@@ -226,11 +224,11 @@ export class MessageFormatter {
     });
 
     return [
-      this.header('Run Lookup'),
+      'Run Lookup',
       '',
-      `🆔 Run: \`${item.id}\``,
-      `🧭 Type: ${item.commandType}`,
-      `🕒 Created: ${hh}:${mm}`,
+      `Run: ${item.id}`,
+      `Type: ${item.commandType}`,
+      `Created: ${hh}:${mm}`,
       '',
       raw,
     ].join('\n');
@@ -238,28 +236,28 @@ export class MessageFormatter {
 
   formatRunList(items: Array<{ id: string; commandType: string; createdAt: number }> | null | undefined) {
     if (!items || items.length === 0) {
-      return [this.header('Runs'), '', 'ℹ️ No recent runs found.'].join('\n');
+      return 'Runs - No recent runs found.';
     }
 
     const lines = items.map((item) => {
       const created = new Date(item.createdAt);
       const hh = String(created.getHours()).padStart(2, '0');
       const mm = String(created.getMinutes()).padStart(2, '0');
-      return `• \`${item.id}\` · ${item.commandType} · ${hh}:${mm}`;
+      return `- ${item.id}: ${item.commandType} at ${hh}:${mm}`;
     });
 
     return [
-      this.header('Runs'),
+      'Runs',
       '',
       'Recent run IDs',
       ...lines,
       '',
-      'Use `/get <runId>` to fetch one.',
+      'Use /get <runId> to fetch one.',
     ].join('\n');
   }
 
   formatWarning(mode: string, text: string): string {
-    return [this.header(mode), '', `⚠️ ${text}`].join('\n');
+    return `${mode} - ${text}`;
   }
 
   formatPermissionRequest(permission: { id?: string; title?: string; type?: string; sessionID?: string } | null | undefined) {
@@ -269,30 +267,29 @@ export class MessageFormatter {
     const sessionID = permission?.sessionID || '(none)';
 
     return [
-      this.header('Permission'),
+      'Permission Request',
       '',
-      `⚠️ ${title}`,
-      `🆔 Permission: \`${id}\``,
-      `🧵 Session: \`${sessionID}\``,
-      `🏷 Type: ${type}`,
+      title,
+      `Permission: ${id}`,
+      `Session: ${sessionID}`,
+      `Type: ${type}`,
       '',
       'Reply with:',
-      `• \`/allow ${id}\``,
-      `• \`/permission ${id} always\``,
-      `• \`/deny ${id}\``,
+      `- /allow ${id}`,
+      `- /permission ${id} always`,
+      `- /deny ${id}`,
     ].join('\n');
   }
 
   formatError(mode: string, text: string): string {
     return [
-      this.header(mode),
+      `${mode} - Command failed`,
       '',
-      '❌ Command failed',
       text,
       '',
-      'Try',
-      '1) `/status`',
-      '2) `/help`',
+      'Try:',
+      '1) /status',
+      '2) /help',
     ].join('\n');
   }
 

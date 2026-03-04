@@ -343,7 +343,15 @@ export class CommandExecutor {
 
       case 'model.list': {
         const providers = await this.adapter.listProviders();
-        return this.formatter.formatSuccess('Model Providers', this.pretty(providers));
+        const verbose = Boolean(intent.verbose);
+        const providerId = String(intent.providerId || '').trim();
+        if (verbose) {
+          return this.formatter.formatSuccess('Model Providers', this.pretty(providers));
+        }
+        return this.formatter.formatSuccess(
+          'Model Providers',
+          this.formatModelProvidersSummary(providers, providerId),
+        );
       }
 
       case 'model.set': {
@@ -443,5 +451,77 @@ export class CommandExecutor {
       return value;
     }
     return `\n\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
+  }
+
+  formatModelProvidersSummary(value: unknown, providerFilter = ''): string {
+    const providers = this.extractProviders(value);
+    const filtered = providerFilter
+      ? providers.filter(
+          (provider) =>
+            String(provider.id || provider.name || '')
+              .toLowerCase()
+              .trim() === providerFilter.toLowerCase(),
+        )
+      : providers;
+
+    if (filtered.length === 0) {
+      return providerFilter
+        ? `No provider found for \`${providerFilter}\`. Use \`/model list\` to see provider IDs.`
+        : 'No providers found. Use `/model list full` for raw output.';
+    }
+
+    const flattened: string[] = [];
+    for (const provider of filtered) {
+      const providerId = String(provider.id || provider.name || '(unknown)');
+      const modelsRecord = provider.models && typeof provider.models === 'object' ? provider.models : {};
+      for (const modelId of Object.keys(modelsRecord as Record<string, unknown>)) {
+        const model = (modelsRecord as Record<string, unknown>)[modelId] as { status?: string } | undefined;
+        if (!model || !model.status || model.status === 'active') {
+          flattened.push(`${providerId}/${modelId}`);
+        }
+      }
+    }
+
+    if (flattened.length === 0) {
+      return 'No available models found. Use `/model list full` for raw output.';
+    }
+
+    flattened.sort((a, b) => a.localeCompare(b));
+    const maxItems = providerFilter ? 120 : 60;
+    const shown = flattened.slice(0, maxItems);
+    const omitted = Math.max(0, flattened.length - shown.length);
+
+    const lines = [
+      `Available models: ${flattened.length}`,
+      '',
+      ...shown.map((entry) => `• \`${entry}\``),
+    ];
+
+    if (omitted > 0) {
+      lines.push('', `...and ${omitted} more.`);
+    }
+
+    lines.push('', 'Tip: `/model set <providerId> <modelId>`');
+    lines.push('Tip: `/model list <providerId>` to narrow results.');
+    lines.push('Tip: `/model list full` for full raw JSON.');
+    return lines.join('\n');
+  }
+
+  extractProviders(value: unknown): Array<{ id?: string; name?: string; models?: unknown }> {
+    if (Array.isArray(value)) {
+      return value as Array<{ id?: string; name?: string; models?: unknown }>;
+    }
+
+    if (value && typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      if (Array.isArray(obj.all)) {
+        return obj.all as Array<{ id?: string; name?: string; models?: unknown }>;
+      }
+      if (Array.isArray(obj.providers)) {
+        return obj.providers as Array<{ id?: string; name?: string; models?: unknown }>;
+      }
+    }
+
+    return [];
   }
 }

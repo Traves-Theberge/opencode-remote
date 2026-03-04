@@ -265,7 +265,8 @@ Common commands:
 Advanced control-plane namespaces:
 
 - `/model status`
-- `/model list`
+- `/model list` (compact summary)
+- `/model list full` (full provider JSON; large)
 - `/model set <providerId> <modelId>`
 - `/tools ids`
 - `/tools list [providerId] [modelId]`

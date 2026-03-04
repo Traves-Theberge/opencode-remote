@@ -23,7 +23,7 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 - Execution: `/run <command>`, `/shell <command>`, `/abort`
 - Permission workflow: `/permission <id> <once|always|reject>`, `/allow <id>`, `/deny <id>`
 - Output retrieval: `/runs`, `/get <runId>`
-- Model management: `/model status`, `/model list`, `/model set <providerId> <modelId>`
+- Model management: `/model status`, `/model list` (summary), `/model list full`, `/model set <providerId> <modelId>`
 - Tool management: `/tools ids`, `/tools list [providerId] [modelId]`
 - MCP management: `/mcp status`, `/mcp add <name> <command>`, `/mcp connect <server>`, `/mcp disconnect <server>`
 - Skills/agents: `/skills list`

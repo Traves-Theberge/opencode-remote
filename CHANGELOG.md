@@ -138,6 +138,10 @@ All notable changes to this project are documented in this file.
 - Telegram outbound formatting now uses `parse_mode=MarkdownV2` with Telegram-compliant escaping.
 - Telegram output renderer now preserves inline code blocks and styles key section lines (header, Next/Try/Reply sections).
 - Telegram callback acknowledgement now safely ignores stale callback query errors (`query is too old` / `query ID is invalid`).
+- Telegram polling lease acquisition now auto-retries every 5s when lease is held by another instance, preventing post-redeploy dead polling states.
+- `/model list` now returns a compact provider/model summary by default to prevent Telegram message floods.
+- Added `/model list full` for explicit full provider JSON output when needed.
+- Telegram send path now throttles chunk delivery, retries on `429 retry_after`, and caps chat delivery chunks to prevent large-output blast spam.
 - Runtime `/status` output now includes transport health and polling conflict recovery timing.
 - SQLite schema now includes transport lease support (`transport_leases`) to protect polling ownership on shared DB deployments.
 - Webhook mode now fails fast unless `telegram.webhookSecret` is configured.
@@ -147,8 +151,8 @@ All notable changes to this project are documented in this file.
 - SQLite audit and dead-letter writes now redact token/secret/bearer-like values before persistence.
 - Removed dead code: `src/audit/logger.ts` and unused `OpenCodeAdapter.server` field.
 - Package versions bumped for release alignment:
-  - root `opencode-remote` -> `1.2.1`
-  - workspaces (`daemon`, `cli`, `tui`, `bridge`) -> `0.2.1`
+  - root `opencode-remote` -> `1.2.2`
+  - workspaces (`daemon`, `cli`, `tui`, `bridge`) -> `0.2.2`
 - `/opencode diagnostics` now includes runtime transport and lease status snapshot.
 - Documentation updated for prefix-optional command model and webhook-first production profile.
 - TSDoc coverage expanded across runtime, transport, bridge, and CLI/TUI entry modules.

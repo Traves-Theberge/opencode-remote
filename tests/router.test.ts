@@ -185,6 +185,10 @@ test('routes model namespace commands', async () => {
   const list = await router.parse('/model list');
   assert.equal(list.command, 'model list');
 
+  const listFull = await router.parse('/model list full');
+  assert.equal(listFull.command, 'model list');
+  assert.equal(listFull.args[0], 'full');
+
   const set = await router.parse('/model set anthropic claude-3-5-sonnet');
   assert.equal(set.command, 'model set');
   assert.equal(set.args[0], 'anthropic');

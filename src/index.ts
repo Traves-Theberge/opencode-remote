@@ -74,10 +74,13 @@ class App {
   messageQueues: Map<string, Promise<unknown>>;
   instanceId: string;
   leaseHeartbeat: NodeJS.Timeout | null;
+  leaseAcquireRetry: NodeJS.Timeout | null;
+  leaseAcquireInFlight: boolean;
   senderBuckets: Map<string, TokenBucket>;
   globalBucket: TokenBucket;
   telegramConflictAlertedAtCount: number;
   telegramConflictLastAlertAt: number;
+  progressAckCounter: number;
 
   constructor() {
     this.store = new LocalStore(String(config.get('storage.dbPath') || './data/opencode-remote.db'));
@@ -108,6 +111,8 @@ class App {
     this.messageQueues = new Map();
     this.instanceId = randomUUID();
     this.leaseHeartbeat = null;
+    this.leaseAcquireRetry = null;
+    this.leaseAcquireInFlight = false;
     this.senderBuckets = new Map();
     this.globalBucket = {
       tokens: Number(config.get('security.ingressBurst') || 10),
@@ -115,6 +120,7 @@ class App {
     };
     this.telegramConflictAlertedAtCount = 0;
     this.telegramConflictLastAlertAt = 0;
+    this.progressAckCounter = 0;
   }
 
   /**
@@ -383,12 +389,13 @@ class App {
         this.access.setBusy(session, true);
 
         if (this.shouldSendProgress(intent.type)) {
+          this.progressAckCounter += 1;
           await this.sendChannel(
             channel,
             rawFrom,
             this.formatter.formatSuccess(
               'Working',
-              `Processing ${intent.type}. I will send the result shortly.`,
+              this.formatProgressAck(intent.type),
             ),
           );
         }
@@ -520,29 +527,70 @@ class App {
       const shouldLeasePolling = pollingEnabled && !webhookEnabled;
 
       if (shouldLeasePolling) {
-        const acquired = this.store.acquireTransportLease(
-          'telegram-polling',
-          this.instanceId,
-          60_000,
-        );
-        if (!acquired) {
-          logger.warn(
-            { lease: this.store.getTransportLease('telegram-polling') },
-            'Skipping Telegram polling start; lease owned by another instance',
-          );
-          return;
-        }
-
-        this.leaseHeartbeat = setInterval(() => {
-          const renewed = this.store.renewTransportLease('telegram-polling', this.instanceId, 60_000);
-          if (!renewed) {
-            logger.warn('Telegram polling lease renewal failed; transport may be preempted');
-          }
-        }, 20_000);
+        await this.ensureTelegramPollingLease();
+        return;
       }
 
       await this.telegramTransport.start();
     }
+  }
+
+  async ensureTelegramPollingLease() {
+    const acquired = this.store.acquireTransportLease('telegram-polling', this.instanceId, 60_000);
+    if (!acquired) {
+      const lease = this.store.getTransportLease('telegram-polling');
+      logger.warn(
+        {
+          lease,
+          retryInMs: 5000,
+          expiresInMs: lease ? Math.max(0, lease.expires_at - Date.now()) : 0,
+        },
+        'Telegram polling lease owned elsewhere; retrying acquisition',
+      );
+      this.schedulePollingLeaseRetry();
+      return;
+    }
+
+    this.startPollingLeaseHeartbeat();
+    if (!this.telegramTransport.running) {
+      try {
+        await this.telegramTransport.start();
+      } catch (error) {
+        logger.error({ err: error }, 'Telegram transport failed to start after lease acquisition');
+        this.store.releaseTransportLease('telegram-polling', this.instanceId);
+        this.schedulePollingLeaseRetry();
+      }
+    }
+  }
+
+  startPollingLeaseHeartbeat() {
+    if (this.leaseHeartbeat) {
+      return;
+    }
+
+    this.leaseHeartbeat = setInterval(() => {
+      const renewed = this.store.renewTransportLease('telegram-polling', this.instanceId, 60_000);
+      if (!renewed) {
+        logger.warn('Telegram polling lease renewal failed; transport may be preempted');
+      }
+    }, 20_000);
+  }
+
+  schedulePollingLeaseRetry() {
+    if (this.leaseAcquireRetry) {
+      return;
+    }
+
+    this.leaseAcquireRetry = setInterval(() => {
+      if (this.leaseAcquireInFlight) {
+        return;
+      }
+
+      this.leaseAcquireInFlight = true;
+      void this.ensureTelegramPollingLease().finally(() => {
+        this.leaseAcquireInFlight = false;
+      });
+    }, 5000);
   }
 
   /**
@@ -619,6 +667,59 @@ class App {
     return !nonStored.has(commandType);
   }
 
+  formatProgressAck(commandType: string): string {
+    const templates = [
+      `Processing ${commandType}. I will send the result shortly.`,
+      `${commandType} accepted. Running it now and I will follow up soon.`,
+      `Working on ${commandType}. You will get the output in a moment.`,
+      `${commandType} is in progress. Sending the result as soon as it is ready.`,
+      `Got it. Kicking off ${commandType} now.`,
+      `Nice one. ${commandType} is underway.`,
+      `On it. ${commandType} is now running.`,
+      `Locked in. Starting ${commandType}.`,
+      `Roger that. ${commandType} is in motion.`,
+      `${commandType} queued and executing now.`,
+      `Starting ${commandType}. I will report back with results.`,
+      `${commandType} received. Crunching through it now.`,
+      `Running ${commandType} at full speed. Stand by.`,
+      `${commandType} is cooking. Results coming up shortly.`,
+      `Great prompt. Executing ${commandType} now.`,
+      `${commandType} has started. I will send the output soon.`,
+      `Command locked. ${commandType} is now in flight.`,
+      `${commandType} is live. I will post the result when complete.`,
+      `Working phase started for ${commandType}.`,
+      `${commandType} acknowledged and processing now.`,
+      `I am on ${commandType}. Output incoming soon.`,
+      `Spinning up ${commandType} now.`,
+      `${commandType} is rolling. I will send the final response next.`,
+      `Launching ${commandType}. Thanks for your patience.`,
+      `Copy that. ${commandType} is being handled now.`,
+      `${commandType} entered execution. Result to follow shortly.`,
+      `Say less. I am already running ${commandType}.`,
+      `Oh we are doing ${commandType}? Bet.`,
+      `Spicy request detected. ${commandType} is now on the grill.`,
+      `You brought the chaos, I brought the engine. Running ${commandType}.`,
+      `Respectfully: let me cook. ${commandType} is in progress.`,
+      `Tiny bit of attitude, huge amount of execution. ${commandType} underway.`,
+      `Hot take mode activated. Executing ${commandType}.`,
+      `I like your style. ${commandType} is happening now.`,
+      `That is bold. I am into it. Running ${commandType}.`,
+      `No drama, just results. ${commandType} is moving.`,
+      `Energy: immaculate. ${commandType} is now in motion.`,
+      `We are not here to be mid. Executing ${commandType}.`,
+      `Consider it handled with extra sauce. ${commandType} running.`,
+      `Fun, spicy, and efficient. Starting ${commandType}.`,
+      `You ask, I attack. ${commandType} is underway.`,
+      `Big confidence energy. ${commandType} is processing now.`,
+      `This one has flavor. Running ${commandType} immediately.`,
+      `Calm hands, sharp tools. ${commandType} in progress.`,
+      `Spice level: tasteful. Execution level: maximum. ${commandType} running.`,
+      `Absolutely. ${commandType} is being handled like a pro.`,
+    ];
+
+    return templates[this.progressAckCounter % templates.length] || templates[0] || 'Working...';
+  }
+
   installShutdownHandlers() {
     const confirmCleanupInterval = setInterval(() => {
       this.access.cleanupExpiredConfirms();
@@ -631,6 +732,10 @@ class App {
       if (this.leaseHeartbeat) {
         clearInterval(this.leaseHeartbeat);
         this.leaseHeartbeat = null;
+      }
+      if (this.leaseAcquireRetry) {
+        clearInterval(this.leaseAcquireRetry);
+        this.leaseAcquireRetry = null;
       }
       this.store.releaseTransportLease('telegram-polling', this.instanceId);
       if (this.stopEventStream) {

@@ -12,7 +12,17 @@ class AdapterStub {
 
   async listProviders() {
     this.called.push({ method: 'listProviders', args: [] });
-    return [{ id: 'anthropic' }];
+    return {
+      all: [
+        {
+          id: 'anthropic',
+          models: {
+            'claude-3-5-sonnet': { status: 'active' },
+            'claude-3-5-haiku': { status: 'active' },
+          },
+        },
+      ],
+    };
   }
 
   async setModel(providerId: string, modelId: string) {
@@ -107,7 +117,8 @@ test('executes advanced namespace intents through adapter', async () => {
   const executor = new CommandExecutor(adapter as never, new AccessStub() as never, new StoreStub() as never);
 
   await executor.execute({ type: 'model.status' }, session);
-  await executor.execute({ type: 'model.list' }, session);
+  const modelSummary = await executor.execute({ type: 'model.list' }, session);
+  const modelFull = await executor.execute({ type: 'model.list', verbose: true }, session);
   await executor.execute({ type: 'model.set', providerId: 'anthropic', modelId: 'claude' }, session);
   await executor.execute({ type: 'tools.ids' }, session);
   await executor.execute({ type: 'tools.list', providerId: 'anthropic', modelId: 'claude' }, session);
@@ -120,6 +131,9 @@ test('executes advanced namespace intents through adapter', async () => {
   await executor.execute({ type: 'opencode.diagnostics' }, session);
 
   const methods = adapter.called.map((entry) => entry.method);
+  assert.ok(String(modelSummary).includes('Tip: `/model list full`'));
+  assert.ok(!String(modelSummary).includes('```json'));
+  assert.ok(String(modelFull).includes('```json'));
   assert.equal(methods.includes('getModelStatus'), true);
   assert.equal(methods.includes('setModel'), true);
   assert.equal(methods.includes('listTools'), true);

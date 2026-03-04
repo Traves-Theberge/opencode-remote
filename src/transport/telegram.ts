@@ -570,14 +570,75 @@ export class TelegramTransport {
 
     const rendered = this.renderMarkdownV2(String(text || ''));
     const chunks = this.chunkMessage(rendered, 4096);
-    for (const chunk of chunks) {
-      await this.api('sendMessage', {
-        chat_id: chatId,
-        text: chunk,
-        parse_mode: 'MarkdownV2',
-        reply_markup: DEFAULT_KEYBOARD,
-      });
+    const chunkDelayMs = Math.max(0, Number(config.get('telegram.sendChunkDelayMs')) || 1100);
+    const maxRetries = Math.max(1, Number(config.get('telegram.sendMaxRetries')) || 3);
+    const maxChunks = Math.max(2, Number(config.get('telegram.sendMaxChunks')) || 8);
+    const deliveryChunks = this.limitDeliveryChunks(chunks, maxChunks);
+
+    for (let chunkIndex = 0; chunkIndex < deliveryChunks.length; chunkIndex += 1) {
+      const chunk = deliveryChunks[chunkIndex] || '';
+      let sent = false;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+        try {
+          await this.api('sendMessage', {
+            chat_id: chatId,
+            text: chunk,
+            parse_mode: 'MarkdownV2',
+            reply_markup: DEFAULT_KEYBOARD,
+          });
+          sent = true;
+          break;
+        } catch (error) {
+          const retryAfterSec = this.extractRetryAfterSeconds(error);
+          if (retryAfterSec <= 0 || attempt >= maxRetries) {
+            throw error;
+          }
+
+          const waitMs = retryAfterSec * 1000;
+          logger.warn(
+            {
+              err: error,
+              chatId,
+              attempt,
+              waitMs,
+              chunkIndex,
+              chunkCount: deliveryChunks.length,
+            },
+            'Telegram sendMessage rate-limited; waiting before retry',
+          );
+          await this.sleep(waitMs);
+        }
+      }
+
+      if (!sent) {
+        throw new Error('Telegram sendMessage failed after retries');
+      }
+
+      if (chunkDelayMs > 0 && chunkIndex < deliveryChunks.length - 1) {
+        await this.sleep(chunkDelayMs);
+      }
     }
+  }
+
+  limitDeliveryChunks(chunks: string[], maxChunks: number): string[] {
+    if (chunks.length <= maxChunks) {
+      return chunks;
+    }
+
+    const headCount = Math.max(1, maxChunks - 2);
+    const omittedCount = Math.max(0, chunks.length - headCount - 1);
+    const tail = chunks[chunks.length - 1] || '';
+    const notice = this.renderMarkdownV2(
+      `... output truncated in chat (${chunks.length} chunks total, ${omittedCount} omitted). Use /get <runId> for full output.`,
+    );
+
+    logger.warn(
+      { originalChunkCount: chunks.length, deliveredChunkCount: headCount + 2 },
+      'Telegram output chunk limit applied',
+    );
+
+    return [...chunks.slice(0, headCount), notice, tail];
   }
 
   chunkMessage(text: string, maxLength: number): string[] {

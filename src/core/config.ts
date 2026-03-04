@@ -31,6 +31,9 @@ const defaults = {
     pollingConflictAlertCooldownMs: 300_000,
     pollingRecoveryMinIntervalMs: 60_000,
     pollingCloseMaxAttempts: 2,
+    sendChunkDelayMs: 1100,
+    sendMaxRetries: 3,
+    sendMaxChunks: 8,
   },
   opencode: {
     serverUrl: 'http://localhost:4096',

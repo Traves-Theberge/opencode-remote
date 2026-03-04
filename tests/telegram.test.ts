@@ -159,6 +159,18 @@ test('bolds formatter section lines for styled telegram output', () => {
   assert.ok(rendered.includes('`continue with this task`'));
 });
 
+test('limits oversized telegram outputs to avoid chat floods', () => {
+  const transport = new TelegramTransportStub(async () => null);
+  const chunks = Array.from({ length: 20 }, (_v, i) => `chunk-${i + 1}`);
+  const limited = transport.limitDeliveryChunks(chunks, 8);
+
+  assert.equal(limited.length, 8);
+  assert.equal(limited[0], 'chunk-1');
+  assert.equal(limited[5], 'chunk-6');
+  assert.ok(String(limited[6]).includes('output truncated in chat'));
+  assert.equal(limited[7], 'chunk-20');
+});
+
 test('polling loop does not overlap concurrent getUpdates requests', async () => {
   class PollingProbe extends TelegramTransport {
     current = 0;
