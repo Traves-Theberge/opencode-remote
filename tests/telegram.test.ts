@@ -147,6 +147,15 @@ test('renders markdownv2 text while preserving inline code', () => {
   );
 });
 
+test('preserves fenced code blocks for markdownv2 rendering', () => {
+  const transport = new TelegramTransportStub(async () => null);
+  const rendered = transport.renderMarkdownV2('Output\n```json\n{\n  "ok": true\n}\n```');
+
+  assert.ok(rendered.includes('```json'));
+  assert.ok(rendered.includes('"ok": true'));
+  assert.ok(!rendered.includes('\\`\\`\\`json'));
+});
+
 test('bolds formatter section lines for styled telegram output', () => {
   const transport = new TelegramTransportStub(async () => null);
   const rendered = transport.renderMarkdownV2(

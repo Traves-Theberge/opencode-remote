@@ -665,7 +665,17 @@ export class TelegramTransport {
   }
 
   renderMarkdownV2(text: string): string {
-    const lines = String(text || '').split('\n');
+    const codeBlocks: Array<{ lang: string; body: string }> = [];
+    const withBlockPlaceholders = String(text || '').replace(
+      /```([A-Za-z0-9_-]*)\n([\s\S]*?)```/g,
+      (_whole, lang: string, body: string) => {
+        const id = codeBlocks.length;
+        codeBlocks.push({ lang: String(lang || ''), body: String(body || '') });
+        return `@@BLOCK${id}@@`;
+      },
+    );
+
+    const lines = withBlockPlaceholders.split('\n');
 
     return lines
       .map((line) => {
@@ -681,6 +691,14 @@ export class TelegramTransport {
           const idx = Number(idxText);
           const code = inlineCodes[idx] || '';
           return `\`${this.escapeMarkdownV2Code(code)}\``;
+        });
+
+        escaped = escaped.replace(/@@BLOCK(\d+)@@/g, (_whole, idxText: string) => {
+          const idx = Number(idxText);
+          const block = codeBlocks[idx] || { lang: '', body: '' };
+          const lang = String(block.lang || '').replace(/[^A-Za-z0-9_-]/g, '');
+          const body = this.escapeMarkdownV2Code(String(block.body || '').replace(/\n$/, ''));
+          return `\`\`\`${lang}\n${body}\n\`\`\``;
         });
 
         if (this.shouldBoldLine(line)) {
