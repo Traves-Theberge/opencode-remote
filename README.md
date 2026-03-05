@@ -99,6 +99,8 @@ npm run hooks:install
 
 This installs a local git `post-commit` hook that starts `npm run docker:redeploy` in the background after each commit,
 plus a `pre-push` guard that blocks `.env*` (except `.env.docker.example`) and database artifacts (`data/*`, `*.db*`, `*.sqlite*`) from leaving your machine.
+The redeploy hook waits 20 seconds by default so in-flight Telegram replies can finish; override with `OPENCODE_REMOTE_POST_COMMIT_DELAY_SEC=<seconds>`.
+By default redeploy builds with Docker cache for speed; set `OPENCODE_REMOTE_REDEPLOY_NO_CACHE=1` only when you need a clean rebuild.
 
 Webhook-first production profile:
 

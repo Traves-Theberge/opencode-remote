@@ -15,8 +15,14 @@ export OPENCODE_REMOTE_BUILD_ID
 
 echo "[redeploy] Using build id: ${OPENCODE_REMOTE_BUILD_ID}"
 
-echo "[redeploy] Building compose service image (no cache)..."
-docker compose build --no-cache remote
+REDEPLOY_NO_CACHE="${OPENCODE_REMOTE_REDEPLOY_NO_CACHE:-0}"
+if [[ "$REDEPLOY_NO_CACHE" == "1" ]]; then
+  echo "[redeploy] Building compose service image (no cache)..."
+  docker compose build --no-cache remote
+else
+  echo "[redeploy] Building compose service image (cache enabled)..."
+  docker compose build remote
+fi
 
 echo "[redeploy] Recreating remote container..."
 docker compose up -d --force-recreate remote

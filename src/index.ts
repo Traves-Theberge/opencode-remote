@@ -300,7 +300,7 @@ class App {
       }
 
       if (this.isDuplicate(dedupKey)) {
-        return '✅ Already processed.';
+        return 'Already processed.';
       }
 
       const throttle = this.checkIngressRateLimit(sender || dedupSender);
@@ -451,7 +451,7 @@ class App {
 
         this.access.setBusy(session, true);
 
-        if (this.shouldSendProgress()) {
+        if (this.shouldSendProgress(intent.type)) {
           this.progressAckCounter += 1;
           await this.sendChannel(
             channel,
@@ -721,8 +721,17 @@ class App {
     return this.store.isMessageProcessed(dedupKey);
   }
 
-  shouldSendProgress(): boolean {
-    return false;
+  shouldSendProgress(commandType: string): boolean {
+    const longRunning = new Set([
+      'prompt',
+      'run',
+      'shell',
+      'find.text',
+      'find.files',
+      'diff',
+      'summarize',
+    ]);
+    return longRunning.has(commandType);
   }
 
   shouldStoreRun(commandType: string): boolean {
@@ -732,16 +741,16 @@ class App {
 
   formatProgressAck(commandType: string): string {
     const templates = [
-      `Processing now - running ${commandType}.`,
-      `Processing now - your request is in flight.`,
-      `Processing now - working through ${commandType}.`,
-      `Processing now - let me cook for a sec.`,
-      `Processing now - we are on it.`,
-      `Processing now - output coming shortly.`,
-      `Processing now - executing with style.`,
-      `Processing now - this one is underway.`,
-      `Processing now - smooth and spicy.`,
-      `Processing now - handled. Results soon.`,
+      `Processing - running ${commandType}.`,
+      `Processing - your request is in flight.`,
+      `Processing - ${commandType} in progress.`,
+      `Processing - let me cook for a sec.`,
+      `Processing - we are on it.`,
+      `Processing - output coming shortly.`,
+      `Processing - executing with style.`,
+      `Processing - this one is underway.`,
+      `Processing - smooth and spicy.`,
+      `Processing - handled. Results soon.`,
     ];
 
     const randomOffset = Math.floor(Math.random() * templates.length);

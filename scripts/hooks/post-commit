@@ -28,11 +28,20 @@ if [[ ! -w "$LOG_DIR" ]]; then
   LOG_DIR="$REPO_ROOT/.git"
 fi
 LOG_FILE="$LOG_DIR/post-commit-redeploy.log"
+REDEPLOY_DELAY_SEC="${OPENCODE_REMOTE_POST_COMMIT_DELAY_SEC:-20}"
+
+if ! [[ "$REDEPLOY_DELAY_SEC" =~ ^[0-9]+$ ]]; then
+  REDEPLOY_DELAY_SEC=20
+fi
 
 (
+  if (( REDEPLOY_DELAY_SEC > 0 )); then
+    echo "[$(date -Is)] post-commit redeploy waiting ${REDEPLOY_DELAY_SEC}s for in-flight responses"
+    sleep "$REDEPLOY_DELAY_SEC"
+  fi
   echo "[$(date -Is)] post-commit redeploy started"
   OPENCODE_SERVER_URL="${OPENCODE_SERVER_URL:-http://127.0.0.1:4096}" npm --prefix "$REPO_ROOT" run docker:redeploy
   echo "[$(date -Is)] post-commit redeploy finished"
 ) >>"$LOG_FILE" 2>&1 &
 
-echo "post-commit: docker redeploy started in background (log: $LOG_FILE)"
+echo "post-commit: docker redeploy scheduled in ${REDEPLOY_DELAY_SEC}s (log: $LOG_FILE)"
