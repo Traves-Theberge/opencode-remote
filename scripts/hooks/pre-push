@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+remote_name="${1:-origin}"
+
+is_blocked_path() {
+  local path="$1"
+
+  if [[ "$path" == ".env" ]]; then
+    return 0
+  fi
+
+  if [[ "$path" == .env.* && "$path" != ".env.docker.example" ]]; then
+    return 0
+  fi
+
+  if [[ "$path" == data/* ]]; then
+    return 0
+  fi
+
+  if [[ "$path" =~ \.(db|sqlite|sqlite3|db-shm|db-wal|db-journal)$ ]]; then
+    return 0
+  fi
+
+  return 1
+}
+
+collect_range_files() {
+  local local_sha="$1"
+  local remote_sha="$2"
+
+  if [[ "$local_sha" == "0000000000000000000000000000000000000000" ]]; then
+    return
+  fi
+
+  if [[ "$remote_sha" == "0000000000000000000000000000000000000000" ]]; then
+    git diff-tree --no-commit-id --name-only -r "$local_sha"
+  else
+    git diff --name-only "$remote_sha..$local_sha"
+  fi
+}
+
+blocked=()
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [[ -z "$local_ref" ]] && continue
+
+  while IFS= read -r changed_path; do
+    [[ -z "$changed_path" ]] && continue
+    if is_blocked_path "$changed_path"; then
+      blocked+=("$changed_path")
+    fi
+  done < <(collect_range_files "$local_sha" "$remote_sha")
+done
+
+if (( ${#blocked[@]} > 0 )); then
+  {
+    echo "Push blocked by pre-push guard (${remote_name})."
+    echo "Detected sensitive/local database paths in outgoing commits:"
+    printf ' - %s\n' "${blocked[@]}"
+    echo ""
+    echo "Fix: remove these files from commits/history before pushing."
+  } >&2
+  exit 1
+fi
+
+exit 0

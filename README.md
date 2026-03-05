@@ -97,7 +97,8 @@ Install optional auto-redeploy on commit:
 npm run hooks:install
 ```
 
-This installs a local git `post-commit` hook that starts `npm run docker:redeploy` in the background after each commit.
+This installs a local git `post-commit` hook that starts `npm run docker:redeploy` in the background after each commit,
+plus a `pre-push` guard that blocks `.env*` (except `.env.docker.example`) and database artifacts (`data/*`, `*.db*`, `*.sqlite*`) from leaving your machine.
 
 Webhook-first production profile:
 

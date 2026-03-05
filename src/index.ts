@@ -451,7 +451,7 @@ class App {
 
         this.access.setBusy(session, true);
 
-        if (this.shouldSendProgress(intent.type)) {
+        if (this.shouldSendProgress()) {
           this.progressAckCounter += 1;
           await this.sendChannel(
             channel,
@@ -721,21 +721,12 @@ class App {
     return this.store.isMessageProcessed(dedupKey);
   }
 
-  shouldSendProgress(commandType: string): boolean {
-    const longRunning = new Set([
-      'prompt',
-      'run',
-      'shell',
-      'find.text',
-      'find.files',
-      'diff',
-      'summarize',
-    ]);
-    return longRunning.has(commandType);
+  shouldSendProgress(): boolean {
+    return false;
   }
 
   shouldStoreRun(commandType: string): boolean {
-    const nonStored = new Set(['output.get', 'output.runs', 'status', 'help']);
+    const nonStored = new Set(['output.get', 'output.runs', 'status', 'help', 'diff', 'summarize']);
     return !nonStored.has(commandType);
   }
 
