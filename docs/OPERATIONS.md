@@ -98,7 +98,8 @@ Deterministic Docker redeploy (recommended after code changes):
 npm run docker:redeploy
 ```
 
-This performs a no-cache image rebuild and force-recreates the `remote` service to prevent stale code/image mismatches.
+This performs a cached image rebuild and force-recreates the `remote` service to prevent stale code/image mismatches.
+Set `OPENCODE_REMOTE_REDEPLOY_NO_CACHE=1` only when you need a full clean rebuild.
 By default it sets `OPENCODE_REMOTE_BUILD_ID` to `git-short-sha + timestamp` so startup fingerprint logs prove which build is running.
 
 Optional post-commit auto-redeploy hook:
@@ -108,7 +109,11 @@ npm run hooks:install
 ```
 
 This installs `.git/hooks/post-commit` locally and triggers `npm run docker:redeploy` in the background after each commit.
+The hook sends a Telegram notice before restart, waits 45s for in-flight replies, redeploys, then sends a back-online notice.
 Disable temporarily with `OPENCODE_REMOTE_SKIP_POST_COMMIT_REDEPLOY=1`.
+Tune behavior with:
+- `OPENCODE_REMOTE_POST_COMMIT_DELAY_SEC=<seconds>`
+- `OPENCODE_REMOTE_POST_COMMIT_NOTIFY_TELEGRAM=0`
 Hook logs are written to `data/post-commit-redeploy.log` when writable, otherwise `.git/post-commit-redeploy.log`.
 
 ## Initial Provisioning

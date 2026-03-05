@@ -7,6 +7,12 @@ All notable changes to this project are documented in this file.
 ### Changed
 
 - Removed `@oc` prefix requirement - commands now work without any prefix
+- `diff`/`summarize` commands are no longer persisted in run history, so `/last` returns the latest actionable run output.
+- Duplicate inbound dedupe events now short-circuit silently instead of replying `Already processed.`.
+- Docker redeploy now uses cached builds by default (`OPENCODE_REMOTE_REDEPLOY_NO_CACHE=1` for clean rebuilds).
+- Dockerfile layer ordering now caches `npm ci` unless dependency manifests change, avoiding repeated Transformers.js dependency rebuilds on normal source edits.
+- Post-commit auto-redeploy now sends Telegram owner notices before restart and after successful boot/failure.
+- Post-commit auto-redeploy now waits 45s by default before restart to improve completion-message delivery reliability.
 
 ### Added
 

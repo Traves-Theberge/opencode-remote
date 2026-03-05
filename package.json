@@ -1,6 +1,6 @@
 {
   "name": "opencode-remote",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "OpenCode Remote Control via WhatsApp and Telegram",
   "private": true,
   "type": "module",

@@ -28,20 +28,84 @@ if [[ ! -w "$LOG_DIR" ]]; then
   LOG_DIR="$REPO_ROOT/.git"
 fi
 LOG_FILE="$LOG_DIR/post-commit-redeploy.log"
-REDEPLOY_DELAY_SEC="${OPENCODE_REMOTE_POST_COMMIT_DELAY_SEC:-20}"
+REDEPLOY_DELAY_SEC="${OPENCODE_REMOTE_POST_COMMIT_DELAY_SEC:-45}"
+NOTIFY_TELEGRAM="${OPENCODE_REMOTE_POST_COMMIT_NOTIFY_TELEGRAM:-1}"
+
+read_env_var() {
+  local key="$1"
+  local env_file="$REPO_ROOT/.env"
+  local line
+
+  [[ -f "$env_file" ]] || return 1
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ "$line" != "$key="* ]] && continue
+
+    line="${line#*=}"
+    line="${line%\"}"
+    line="${line#\"}"
+    line="${line%\'}"
+    line="${line#\'}"
+    printf '%s' "$line"
+    return 0
+  done < "$env_file"
+
+  return 1
+}
+
+send_telegram_notice() {
+  local message="$1"
+
+  if [[ "$NOTIFY_TELEGRAM" != "1" ]]; then
+    return 0
+  fi
+
+  command -v curl >/dev/null 2>&1 || return 0
+
+  local bot_token="${TELEGRAM_BOT_TOKEN:-}"
+  local chat_id="${TELEGRAM_OWNER_USER_ID:-}"
+
+  if [[ -z "$bot_token" ]]; then
+    bot_token="$(read_env_var TELEGRAM_BOT_TOKEN || true)"
+  fi
+  if [[ -z "$chat_id" ]]; then
+    chat_id="$(read_env_var TELEGRAM_OWNER_USER_ID || true)"
+  fi
+
+  if [[ -z "$bot_token" || -z "$chat_id" ]]; then
+    return 0
+  fi
+
+  curl -fsS --max-time 10 "https://api.telegram.org/bot${bot_token}/sendMessage" \
+    --data-urlencode "chat_id=${chat_id}" \
+    --data-urlencode "text=${message}" \
+    --data-urlencode "disable_web_page_preview=true" \
+    >/dev/null || true
+}
 
 if ! [[ "$REDEPLOY_DELAY_SEC" =~ ^[0-9]+$ ]]; then
-  REDEPLOY_DELAY_SEC=20
+  REDEPLOY_DELAY_SEC=45
 fi
 
+COMMIT_SHA="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+
 (
+  send_telegram_notice "Deploying update ${COMMIT_SHA}. I will restart in ${REDEPLOY_DELAY_SEC}s and send a ready message after boot."
+
   if (( REDEPLOY_DELAY_SEC > 0 )); then
     echo "[$(date -Is)] post-commit redeploy waiting ${REDEPLOY_DELAY_SEC}s for in-flight responses"
     sleep "$REDEPLOY_DELAY_SEC"
   fi
   echo "[$(date -Is)] post-commit redeploy started"
-  OPENCODE_SERVER_URL="${OPENCODE_SERVER_URL:-http://127.0.0.1:4096}" npm --prefix "$REPO_ROOT" run docker:redeploy
-  echo "[$(date -Is)] post-commit redeploy finished"
+  if OPENCODE_SERVER_URL="${OPENCODE_SERVER_URL:-http://127.0.0.1:4096}" npm --prefix "$REPO_ROOT" run docker:redeploy; then
+    echo "[$(date -Is)] post-commit redeploy finished"
+    send_telegram_notice "OpenCode Remote is back online on ${COMMIT_SHA}."
+  else
+    echo "[$(date -Is)] post-commit redeploy failed"
+    send_telegram_notice "OpenCode Remote redeploy failed on ${COMMIT_SHA}. Check post-commit-redeploy.log."
+  fi
 ) >>"$LOG_FILE" 2>&1 &
 
 echo "post-commit: docker redeploy scheduled in ${REDEPLOY_DELAY_SEC}s (log: $LOG_FILE)"

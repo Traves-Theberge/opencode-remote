@@ -300,7 +300,7 @@ class App {
       }
 
       if (this.isDuplicate(dedupKey)) {
-        return 'Already processed.';
+        return null;
       }
 
       const throttle = this.checkIngressRateLimit(sender || dedupSender);
