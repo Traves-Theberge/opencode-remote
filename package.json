@@ -18,6 +18,7 @@
     "tui": "npm --workspace @opencode-remote/tui run start",
     "docker:redeploy": "bash scripts/docker-redeploy.sh",
     "hooks:install": "bash scripts/install-git-hook-post-commit.sh",
+    "asr:install": "bash scripts/install-asr-prereqs.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:workspaces": "npm --workspace @opencode-remote/daemon run typecheck && npm --workspace @opencode-remote/cli run typecheck && npm --workspace @opencode-remote/bridge run typecheck",
     "test": "tsx --test tests/*.test.ts",

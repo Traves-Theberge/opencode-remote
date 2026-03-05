@@ -59,6 +59,7 @@ In a second terminal, install and run setup:
 
 ```bash
 npm install
+npm run asr:install
 npm run cli -- setup
 npm start
 ```
@@ -122,6 +123,7 @@ Then:
 
 ```bash
 cd ~/opencode-remote
+npm run asr:install
 npm run cli -- setup
 npm start
 ```
@@ -132,6 +134,7 @@ Install and set owner:
 
 ```bash
 npm install
+npm run asr:install
 npx conf set security.ownerNumber "+15551234567"
 ```
 
@@ -338,6 +341,7 @@ Persistence safety:
 - `npm run tui`
 - `npm run docker:redeploy`
 - `npm run hooks:install`
+- `npm run asr:install`
 - `npm run lint`
 - `npm run typecheck`
 - `npm test`

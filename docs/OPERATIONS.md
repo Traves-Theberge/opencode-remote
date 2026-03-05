@@ -80,6 +80,12 @@ Run before release or deployment:
 npm run verify
 ```
 
+Install local ASR prereqs on host runtime:
+
+```bash
+npm run asr:install
+```
+
 Optional combined pipeline:
 
 ```bash

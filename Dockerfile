@@ -9,7 +9,7 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 # better-sqlite3 may need native build tooling during install.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ \
+  && apt-get install -y --no-install-recommends python3 python3-pip ffmpeg make g++ \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
@@ -20,6 +20,9 @@ COPY src ./src
 COPY tsconfig.json ./
 
 RUN npm ci
+
+# Local ASR runtime dependencies (Transformers + CPU PyTorch)
+RUN python3 -m pip install --no-cache-dir --break-system-packages -r ./scripts/asr-requirements.txt
 
 ENV XDG_CONFIG_HOME=/app/config
 ENV OPENCODE_REMOTE_BUILD_ID=$OPENCODE_REMOTE_BUILD_ID
