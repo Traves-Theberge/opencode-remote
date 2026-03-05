@@ -459,10 +459,7 @@ class App {
             await this.sendChannel(
               channel,
               rawFrom,
-              this.formatter.formatSuccess(
-                'Progress',
-                this.formatProgressAck(intent.type),
-              ),
+              this.formatProgressAck(intent.type),
             );
           } catch (error) {
             logger.warn({ err: error, sender, channel }, 'Progress acknowledgement send failed; continuing execution');

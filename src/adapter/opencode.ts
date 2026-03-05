@@ -8,6 +8,8 @@ type OpencodeClient = ReturnType<typeof createOpencodeClient>;
 interface AdapterContext {
   sessionId?: string | null;
   directory?: string | null;
+  retryFreshSession?: boolean;
+  allowBigPickleFallback?: boolean;
 }
 
 interface PromptFileAttachment {
@@ -115,11 +117,32 @@ export class OpenCodeAdapter {
       const data = result.data;
       const messageId = String(data?.info?.id || '');
       logger.info({ sessionId, messageId }, 'Prompt sent');
+      let response = this.formatParts(data?.parts || []);
+
+      if (!response.trim() && messageId) {
+        response = await this.waitForMessageResponse(sessionId, messageId, options);
+      }
+
+      if (!response.trim()) {
+        response = this.extractMessageErrorText(data?.info) || '';
+      }
+
+      if (this.shouldRetryWithFreshSession(data?.info, response, options)) {
+        logger.warn({ sessionId, messageId }, 'Prompt failed due unsupported model; falling back to big-pickle');
+        await this.setModelById('opencode/big-pickle');
+        const fresh = await this.createSession('WhatsApp Remote Session', options);
+        return this.sendPrompt(text, {
+          ...options,
+          sessionId: fresh.id,
+          retryFreshSession: false,
+          allowBigPickleFallback: false,
+        });
+      }
       
       return {
         sessionId,
         messageId,
-        response: this.formatParts(data?.parts || []),
+        response,
       };
     } catch (error) {
       logger.error({ err: error, sessionId }, 'Failed to send prompt');
@@ -155,6 +178,115 @@ export class OpenCodeAdapter {
       logger.warn({ err: error, filePath }, 'Failed to encode attachment as data URL');
       return null;
     }
+  }
+
+  async waitForMessageResponse(sessionId: string, messageId: string, context: AdapterContext): Promise<string> {
+    const timeoutMs = Math.max(5_000, Number(config.get('opencode.promptResponseTimeoutMs')) || 90_000);
+    const intervalMs = Math.max(500, Number(config.get('opencode.promptResponsePollIntervalMs')) || 1500);
+    const started = Date.now();
+
+    while (Date.now() - started < timeoutMs) {
+      try {
+        const result = await this.client.session.message({
+          path: {
+            id: sessionId,
+            messageID: messageId,
+          },
+          query: this.buildQuery(context),
+        });
+
+        const data = result?.data;
+        const response = this.formatParts(data?.parts || []);
+        const info = data?.info as { role?: string; time?: { completed?: number } } | undefined;
+        const completed = info?.role === 'assistant' && typeof info?.time?.completed === 'number';
+
+        const messageError = this.extractMessageErrorText(data?.info);
+        if (messageError) {
+          return messageError;
+        }
+
+        if (response.trim()) {
+          return response;
+        }
+
+        if (completed) {
+          return '';
+        }
+      } catch (error) {
+        logger.warn({ err: error, sessionId, messageId }, 'Failed polling prompt response message');
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+
+    logger.warn({ sessionId, messageId, timeoutMs }, 'Timed out waiting for prompt response payload');
+    return '';
+  }
+
+  extractMessageErrorText(info: unknown): string | null {
+    if (!info || typeof info !== 'object') {
+      return null;
+    }
+
+    const error = (info as { error?: unknown }).error;
+    if (!error || typeof error !== 'object') {
+      return null;
+    }
+
+    const nestedMessage = (error as { data?: { message?: unknown } }).data?.message;
+    if (typeof nestedMessage === 'string' && nestedMessage.trim()) {
+      return nestedMessage.trim();
+    }
+
+    const directMessage = (error as { message?: unknown }).message;
+    if (typeof directMessage === 'string' && directMessage.trim()) {
+      return directMessage.trim();
+    }
+
+    const detail = (error as { detail?: unknown }).detail;
+    if (typeof detail === 'string' && detail.trim()) {
+      return detail.trim();
+    }
+
+    return null;
+  }
+
+  shouldRetryWithFreshSession(info: unknown, response: string, context: AdapterContext): boolean {
+    if (context.retryFreshSession === false) {
+      return false;
+    }
+
+    if (context.allowBigPickleFallback === false) {
+      return false;
+    }
+
+    const summary = Boolean((info as { summary?: unknown } | null | undefined)?.summary);
+    if (!summary) {
+      return false;
+    }
+
+    return this.isUnsupportedCodexModelError(response);
+  }
+
+  isUnsupportedCodexModelError(message: string): boolean {
+    const text = String(message || '').toLowerCase();
+    return text.includes('model is not supported') && text.includes('chatgpt account');
+  }
+
+  async setModelById(model: string) {
+    const modelId = String(model || '').trim();
+    if (!modelId) {
+      throw new Error('Missing model id');
+    }
+
+    const current = await this.client.config.get();
+    const body = {
+      ...(current?.data || {}),
+      model: modelId,
+    };
+
+    const result = await this.client.config.update({ body: body as never });
+    return result?.data || null;
   }
 
   /** Execute command via command endpoint, with shell fallback compatibility. */

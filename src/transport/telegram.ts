@@ -633,11 +633,12 @@ export class TelegramTransport {
           break;
         } catch (error) {
           const retryAfterSec = this.extractRetryAfterSeconds(error);
-          if (retryAfterSec <= 0 || attempt >= maxRetries) {
+          const transient = this.isTransientNetworkError(error);
+          if ((retryAfterSec <= 0 && !transient) || attempt >= maxRetries) {
             throw error;
           }
 
-          const waitMs = retryAfterSec * 1000;
+          const waitMs = retryAfterSec > 0 ? retryAfterSec * 1000 : 1200 * attempt;
           logger.warn(
             {
               err: error,
@@ -646,8 +647,9 @@ export class TelegramTransport {
               waitMs,
               chunkIndex,
               chunkCount: deliveryChunks.length,
+              transient,
             },
-            'Telegram sendMessage rate-limited; waiting before retry',
+            'Telegram sendMessage failed; waiting before retry',
           );
           await this.sleep(waitMs);
         }
@@ -684,26 +686,56 @@ export class TelegramTransport {
   }
 
   chunkMessage(text: string, maxLength: number): string[] {
-    const chunks = [];
+    const chunks: string[] = [];
     const lines = text.split('\n');
     let current = '';
 
+    const pushWithHardLimit = (value: string) => {
+      const normalized = String(value || '');
+      if (!normalized) {
+        return;
+      }
+
+      let offset = 0;
+      while (offset < normalized.length) {
+        chunks.push(normalized.slice(offset, offset + maxLength));
+        offset += maxLength;
+      }
+    };
+
     for (const line of lines) {
-      if ((current + '\n' + line).length <= maxLength) {
-        current += (current ? '\n' : '') + line;
-      } else {
-        if (current) {
-          chunks.push(current);
+      const lineText = String(line || '');
+
+      if (!current) {
+        if (lineText.length <= maxLength) {
+          current = lineText;
+        } else {
+          pushWithHardLimit(lineText);
+          current = '';
         }
-        current = line;
+        continue;
+      }
+
+      const candidate = `${current}\n${lineText}`;
+      if (candidate.length <= maxLength) {
+        current = candidate;
+        continue;
+      }
+
+      pushWithHardLimit(current);
+      if (lineText.length <= maxLength) {
+        current = lineText;
+      } else {
+        pushWithHardLimit(lineText);
+        current = '';
       }
     }
 
     if (current) {
-      chunks.push(current);
+      pushWithHardLimit(current);
     }
 
-    return chunks;
+    return chunks.filter(Boolean);
   }
 
   renderMarkdownV2(text: string): string {
@@ -1066,6 +1098,27 @@ export class TelegramTransport {
     const message = String(error instanceof Error ? error.message : error);
     const match = /"retry_after"\s*:\s*(\d+)/i.exec(message);
     return match ? Number(match[1]) : 0;
+  }
+
+  isTransientNetworkError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const message = String(error.message || '').toLowerCase();
+    if (message.includes('econnreset') || message.includes('etimedout') || message.includes('fetch failed')) {
+      return true;
+    }
+
+    const cause = (error as { cause?: unknown }).cause;
+    if (cause instanceof Error) {
+      const causeMessage = String(cause.message || '').toLowerCase();
+      if (causeMessage.includes('econnreset') || causeMessage.includes('etimedout')) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
