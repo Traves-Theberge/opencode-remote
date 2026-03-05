@@ -189,6 +189,12 @@ Use:
 - `/pwd`
 - `/cd <path>`
 
+### Run output retrieval
+
+- `/last` or `/latest` fetches the newest run output for your user.
+- `/get` without an ID also fetches the newest run output.
+- `/get <runId>` fetches a specific run output.
+
 ## Data Retention Notes
 
 - `messages` table is continuously pruned for recent dedupe window.

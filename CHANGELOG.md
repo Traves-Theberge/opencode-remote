@@ -140,6 +140,11 @@ All notable changes to this project are documented in this file.
 - Telegram output renderer now preserves fenced code blocks (triple-backtick) for cleaner command/menu body rendering.
 - Telegram callback acknowledgement now safely ignores stale callback query errors (`query is too old` / `query ID is invalid`).
 - Chat response body cleanup: removed `Ref:`, `Run:`, and `Next:` sections for cleaner Telegram output.
+- Help menu cleanup: removed `/runs`, `/run`, and `/shell` from default help output.
+- Added `/last` and `/latest` aliases to fetch the most recent run output quickly.
+- `/get` now defaults to latest run output when no run ID is provided.
+- `/abort` confirmation text now reads `Stopped active run(s).` for clearer intent.
+- Progress acknowledgements now use `Processing now - ...` with randomized friendly variants.
 - Telegram polling lease acquisition now auto-retries every 5s when lease is held by another instance, preventing post-redeploy dead polling states.
 - `/model list` now returns a compact provider/model summary by default to prevent Telegram message floods.
 - Added `/model list full` for explicit full provider JSON output when needed.
@@ -153,8 +158,8 @@ All notable changes to this project are documented in this file.
 - SQLite audit and dead-letter writes now redact token/secret/bearer-like values before persistence.
 - Removed dead code: `src/audit/logger.ts` and unused `OpenCodeAdapter.server` field.
 - Package versions bumped for release alignment:
-  - root `opencode-remote` -> `1.2.2`
-  - workspaces (`daemon`, `cli`, `tui`, `bridge`) -> `0.2.2`
+  - root `opencode-remote` -> `1.2.3`
+  - workspaces (`daemon`, `cli`, `tui`, `bridge`) -> `0.2.3`
 - `/opencode diagnostics` now includes runtime transport and lease status snapshot.
 - Documentation updated for prefix-optional command model and webhook-first production profile.
 - TSDoc coverage expanded across runtime, transport, bridge, and CLI/TUI entry modules.

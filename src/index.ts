@@ -669,55 +669,21 @@ class App {
 
   formatProgressAck(commandType: string): string {
     const templates = [
-      `Processing ${commandType}. I will send the result shortly.`,
-      `${commandType} accepted. Running it now and I will follow up soon.`,
-      `Working on ${commandType}. You will get the output in a moment.`,
-      `${commandType} is in progress. Sending the result as soon as it is ready.`,
-      `Got it. Kicking off ${commandType} now.`,
-      `Nice one. ${commandType} is underway.`,
-      `On it. ${commandType} is now running.`,
-      `Locked in. Starting ${commandType}.`,
-      `Roger that. ${commandType} is in motion.`,
-      `${commandType} queued and executing now.`,
-      `Starting ${commandType}. I will report back with results.`,
-      `${commandType} received. Crunching through it now.`,
-      `Running ${commandType} at full speed. Stand by.`,
-      `${commandType} is cooking. Results coming up shortly.`,
-      `Great prompt. Executing ${commandType} now.`,
-      `${commandType} has started. I will send the output soon.`,
-      `Command locked. ${commandType} is now in flight.`,
-      `${commandType} is live. I will post the result when complete.`,
-      `Working phase started for ${commandType}.`,
-      `${commandType} acknowledged and processing now.`,
-      `I am on ${commandType}. Output incoming soon.`,
-      `Spinning up ${commandType} now.`,
-      `${commandType} is rolling. I will send the final response next.`,
-      `Launching ${commandType}. Thanks for your patience.`,
-      `Copy that. ${commandType} is being handled now.`,
-      `${commandType} entered execution. Result to follow shortly.`,
-      `Say less. I am already running ${commandType}.`,
-      `Oh we are doing ${commandType}? Bet.`,
-      `Spicy request detected. ${commandType} is now on the grill.`,
-      `You brought the chaos, I brought the engine. Running ${commandType}.`,
-      `Respectfully: let me cook. ${commandType} is in progress.`,
-      `Tiny bit of attitude, huge amount of execution. ${commandType} underway.`,
-      `Hot take mode activated. Executing ${commandType}.`,
-      `I like your style. ${commandType} is happening now.`,
-      `That is bold. I am into it. Running ${commandType}.`,
-      `No drama, just results. ${commandType} is moving.`,
-      `Energy: immaculate. ${commandType} is now in motion.`,
-      `We are not here to be mid. Executing ${commandType}.`,
-      `Consider it handled with extra sauce. ${commandType} running.`,
-      `Fun, spicy, and efficient. Starting ${commandType}.`,
-      `You ask, I attack. ${commandType} is underway.`,
-      `Big confidence energy. ${commandType} is processing now.`,
-      `This one has flavor. Running ${commandType} immediately.`,
-      `Calm hands, sharp tools. ${commandType} in progress.`,
-      `Spice level: tasteful. Execution level: maximum. ${commandType} running.`,
-      `Absolutely. ${commandType} is being handled like a pro.`,
+      `Processing now - running ${commandType}.`,
+      `Processing now - your request is in flight.`,
+      `Processing now - working through ${commandType}.`,
+      `Processing now - let me cook for a sec.`,
+      `Processing now - we are on it.`,
+      `Processing now - output coming shortly.`,
+      `Processing now - executing with style.`,
+      `Processing now - this one is underway.`,
+      `Processing now - smooth and spicy.`,
+      `Processing now - handled. Results soon.`,
     ];
 
-    return templates[this.progressAckCounter % templates.length] || templates[0] || 'Working...';
+    const randomOffset = Math.floor(Math.random() * templates.length);
+    const index = (this.progressAckCounter + randomOffset) % templates.length;
+    return templates[index] || templates[0] || 'Processing now - working...';
   }
 
   installShutdownHandlers() {

@@ -300,10 +300,10 @@ export class CommandExecutor {
       }
 
       case 'output.get': {
-        if (!intent.runId) {
-          return this.formatter.formatError('Run Lookup', 'Missing run ID');
-        }
-        const item = this.store.getRun(String(intent.runId), session.phoneNumber);
+        const runId = String(intent.runId || '').trim();
+        const item = runId
+          ? this.store.getRun(runId, session.phoneNumber)
+          : this.store.listRuns(session.phoneNumber, 1)[0] || null;
         if (!item) {
           return this.formatter.formatRunLookup(null);
         }
@@ -333,7 +333,7 @@ export class CommandExecutor {
             result.error || 'Failed to abort active session.',
           );
         }
-        return this.formatter.formatSuccess('Abort', 'Active session aborted.');
+        return this.formatter.formatSuccess('Abort', 'Stopped active run(s).');
       }
 
       case 'model.status': {

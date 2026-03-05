@@ -14,8 +14,6 @@ export class MessageFormatter {
     });
 
     return [
-      'Done',
-      '',
       `Session: ${sessionId}`,
       '',
       body,
@@ -184,7 +182,8 @@ export class MessageFormatter {
     return `${mode} - ${text}`;
   }
 
-  formatWithRunId(text: string, _runId: string | null): string {
+  formatWithRunId(text: string, runId: string | null): string {
+    void runId;
     return text;
   }
 

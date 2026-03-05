@@ -15,7 +15,7 @@ Implementation is TypeScript-first (`src/**/*.ts`, `tests/**/*.ts`) with strict 
 - Slash-command control plane for sessions, paths, execution, and permissions
 - Owner/allowlist access control
 - Confirmation flow for dangerous actions
-- Durable run retrieval (`/runs`, `/get <id>`)
+- Durable run retrieval (`/last`, `/get [runId]`)
 - Retry + dead-letter capture for inbound transport failures
 
 ## Architecture
@@ -257,10 +257,9 @@ Common commands:
 
 - `/status`
 - `/session list`
-- `/run <command>`
-- `/shell <command>`
-- `/runs`
-- `/get <runId>`
+- `/abort`
+- `/last`
+- `/get [runId]`
 
 Advanced control-plane namespaces:
 

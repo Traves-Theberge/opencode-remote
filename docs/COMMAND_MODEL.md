@@ -20,9 +20,9 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 - Search: `/find <pattern>`, `/grep <pattern>`
 - Project context: `/projects`, `/project use <id>`
 - Session control: `/session list`, `/session status [id]`, `/session use <id>`, `/session new [title]`, `/session abort <id>`
-- Execution: `/run <command>`, `/shell <command>`, `/abort`
+- Execution: `/abort`
 - Permission workflow: `/permission <id> <once|always|reject>`, `/allow <id>`, `/deny <id>`
-- Output retrieval: `/runs`, `/get <runId>`
+- Output retrieval: `/last`, `/get [runId]`
 - Model management: `/model status`, `/model list` (summary), `/model list full`, `/model set <providerId> <modelId>`
 - Tool management: `/tools ids`, `/tools list [providerId] [modelId]`
 - MCP management: `/mcp status`, `/mcp add <name> <command>`, `/mcp connect <server>`, `/mcp disconnect <server>`
@@ -42,9 +42,9 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 | Namespace | Examples | Owner-only | Confirmation required |
 |---|---|---:|---:|
 | Access admin | `/users ...`, `/lock`, `/unlock` | Yes | No |
-| Session/path/status/read | `/status`, `/session list`, `/pwd`, `/ls`, `/runs` | No | No |
+| Session/path/status/read | `/status`, `/session list`, `/pwd`, `/ls`, `/last`, `/get` | No | No |
 | Prompt | `<text>` | No | No |
-| Execution | `/run`, `/shell`, `/abort`, `/session abort` | No | Yes |
+| Execution | `/abort`, `/session abort` | No | Yes |
 | Model | `/model status`, `/model list`, `/model set` | `set` only | `set` only |
 | Tools | `/tools ids`, `/tools list` | No | No |
 | MCP | `/mcp status`, `/mcp add`, `/mcp connect`, `/mcp disconnect` | add/connect/disconnect | add/connect/disconnect |

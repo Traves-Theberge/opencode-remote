@@ -120,6 +120,9 @@ export class CommandRouter {
         return this.toParsed('status', []);
       case 'get':
         return this.toParsed('output get', [rest[0] || '']);
+      case 'last':
+      case 'latest':
+        return this.toParsed('output get', ['']);
       case 'runs':
         return this.toParsed('output runs', []);
       case 'confirm':
@@ -733,8 +736,6 @@ Quick start:
 • /status — service + transport health
 • /help — show this menu
 • /session new [title] — start a fresh session
-• /runs — list recent run IDs
-• /get <runId> — fetch full output
 
 Common commands:
 • /pwd — show current working directory
@@ -752,11 +753,10 @@ Common commands:
 • /summarize [sessionId] — summarize session context
 
 Execution:
-• /run <command> — run command via command endpoint
-• /shell <command> — run shell command via shell endpoint
-• /abort — stop active run
+• /abort — stop active run(s)
 • /confirm <id> — confirm dangerous action
 • /permission <permissionId> <once|always|reject> — permission response
+• /last — fetch latest run output
 
 OpenCode advanced:
 • /model status | /model list [provider] [full] | /model set <provider> <model>
