@@ -453,14 +453,18 @@ class App {
 
         if (this.shouldSendProgress(intent.type)) {
           this.progressAckCounter += 1;
-          await this.sendChannel(
-            channel,
-            rawFrom,
-            this.formatter.formatSuccess(
-              'Working',
-              this.formatProgressAck(intent.type),
-            ),
-          );
+          try {
+            await this.sendChannel(
+              channel,
+              rawFrom,
+              this.formatter.formatSuccess(
+                'Progress',
+                this.formatProgressAck(intent.type),
+              ),
+            );
+          } catch (error) {
+            logger.warn({ err: error, sender, channel }, 'Progress acknowledgement send failed; continuing execution');
+          }
         }
 
         const output = await this.executor.execute(intent, session);

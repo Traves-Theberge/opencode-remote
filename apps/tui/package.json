@@ -9,7 +9,7 @@
     "dev": "bun --watch src/index.ts"
   },
   "dependencies": {
-    "@opencode-remote/bridge": "0.2.4",
+    "@opencode-remote/bridge": "0.2.5",
     "@opentui/core": "*"
   }
 }

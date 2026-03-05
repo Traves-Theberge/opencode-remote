@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@opencode-remote/bridge": "0.2.4"
+    "@opencode-remote/bridge": "0.2.5"
   },
   "devDependencies": {
     "tsx": "^4.20.5",

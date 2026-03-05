@@ -13,6 +13,8 @@ All notable changes to this project are documented in this file.
 - Dockerfile layer ordering now caches `npm ci` unless dependency manifests change, avoiding repeated Transformers.js dependency rebuilds on normal source edits.
 - Post-commit auto-redeploy now sends Telegram owner notices before restart and after successful boot/failure.
 - Post-commit auto-redeploy now waits 45s by default before restart to improve completion-message delivery reliability.
+- Progress acknowledgements now use `Progress - ...` wording (removed `Working - ...`) and no longer fail command execution when Telegram send retries are exhausted.
+- Workspace package dependency alignment fixed for `@opencode-remote/bridge@0.2.5` in CLI/TUI to avoid Docker/npm install failures during redeploy.
 
 ### Added
 
