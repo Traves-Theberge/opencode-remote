@@ -28,6 +28,7 @@ cd ~/opencode-remote
 Run:
 
 ```bash
+npm run asr:install
 npm run cli -- setup
 ```
 
@@ -70,7 +71,7 @@ cp .env.docker.example .env
 4) Start container:
 
 ```bash
-docker compose up --build -d
+npm run docker:redeploy
 docker compose logs -f remote
 ```
 

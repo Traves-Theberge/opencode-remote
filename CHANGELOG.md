@@ -34,6 +34,7 @@ All notable changes to this project are documented in this file.
 - CLI security posture helper: `security rotate-token-check`.
 - Release notes for hardened release: `RELEASE_NOTES_v1.2.0.md`.
 - Patch release notes for polling/docker sync hardening: `RELEASE_NOTES_v1.2.1.md`.
+- Patch release notes for Telegram media + local ASR packaging: `RELEASE_NOTES_v1.2.4.md`.
 - Architecture diagram set under `docs/architecture/`:
   - system/context/container/component
   - interaction sequences
@@ -172,8 +173,8 @@ All notable changes to this project are documented in this file.
 - SQLite audit and dead-letter writes now redact token/secret/bearer-like values before persistence.
 - Removed dead code: `src/audit/logger.ts` and unused `OpenCodeAdapter.server` field.
 - Package versions bumped for release alignment:
-  - root `opencode-remote` -> `1.2.3`
-  - workspaces (`daemon`, `cli`, `tui`, `bridge`) -> `0.2.3`
+  - root `opencode-remote` -> `1.2.4`
+  - workspaces (`daemon`, `cli`, `tui`, `bridge`) -> `0.2.4`
 - `/opencode diagnostics` now includes runtime transport and lease status snapshot.
 - Documentation updated for prefix-optional command model and webhook-first production profile.
 - TSDoc coverage expanded across runtime, transport, bridge, and CLI/TUI entry modules.
