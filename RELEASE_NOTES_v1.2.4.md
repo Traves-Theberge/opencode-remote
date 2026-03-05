@@ -4,7 +4,7 @@ Release date: 2026-03-05
 
 ## Summary
 
-v1.2.4 finalizes Telegram media support with local Transformers ASR, attachment-aware prompting, and packaged prerequisites for both host installs and Docker builds.
+v1.2.4 finalizes Telegram media support with local Transformers.js ASR, attachment-aware prompting, and JavaScript-only runtime packaging.
 
 ## Highlights
 
@@ -13,12 +13,11 @@ v1.2.4 finalizes Telegram media support with local Transformers ASR, attachment-
   - photo/document images are downloaded and attached to prompt calls
 - Local ASR integration:
   - `src/media/asr.ts`
-  - `scripts/asr_transcribe.py`
-  - default model: `openai/whisper-medium`
-- Packaged prerequisites:
-  - Docker image now installs Python ASR stack (`transformers`, `torch`, `sentencepiece`)
-  - Host install bootstrap now runs ASR prereq installer (`scripts/install-asr-prereqs.sh`)
-  - New helper command: `npm run asr:install`
+  - default model: `Xenova/whisper-small`
+  - runs directly in Node via `@xenova/transformers`
+- Runtime packaging:
+  - Docker image no longer installs Python ASR stacks
+  - No host-side Python ASR setup required
 - Command UX cleanup:
   - `/get` defaults to most recent run when ID is omitted
   - `/last` and `/latest` aliases
@@ -30,7 +29,6 @@ v1.2.4 finalizes Telegram media support with local Transformers ASR, attachment-
 
 ```bash
 npm install
-npm run asr:install
 ```
 
 2. Rebuild runtime image:

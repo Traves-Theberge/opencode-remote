@@ -870,6 +870,7 @@ export class TelegramTransport {
     message: NonNullable<TelegramUpdate['message']>,
     updateId?: number,
   ): Promise<TelegramMediaPayload | null> {
+    // Resolve inbound Telegram media into a local temp file descriptor for app-level handling.
     if (!config.get('media.enabled')) {
       return null;
     }
@@ -943,6 +944,7 @@ export class TelegramTransport {
   }
 
   async downloadTelegramFileToTemp(fileId: string, extension: string, updateId?: number): Promise<string> {
+    // Download through Telegram file API and persist into configured temp path.
     const fileInfo = (await this.api('getFile', { file_id: fileId })) as { result?: { file_path?: string } };
     const filePath = String(fileInfo?.result?.file_path || '');
     if (!filePath) {

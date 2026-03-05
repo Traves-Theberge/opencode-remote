@@ -43,7 +43,7 @@ Request flow:
 - Local OpenCode server (`http://localhost:4096` by default)
 - WhatsApp account for pairing (if WhatsApp transport enabled)
 - Telegram bot token (if Telegram transport enabled)
-- Python 3 with `transformers` installed for voice transcription
+- Local model download capability for Transformers.js voice transcription
 
 ## Quick Start
 
@@ -59,7 +59,6 @@ In a second terminal, install and run setup:
 
 ```bash
 npm install
-npm run asr:install
 npm run cli -- setup
 npm start
 ```
@@ -123,7 +122,6 @@ Then:
 
 ```bash
 cd ~/opencode-remote
-npm run asr:install
 npm run cli -- setup
 npm start
 ```
@@ -134,7 +132,6 @@ Install and set owner:
 
 ```bash
 npm install
-npm run asr:install
 npx conf set security.ownerNumber "+15551234567"
 ```
 
@@ -181,8 +178,7 @@ Notes:
   - `MEDIA_IMAGE_ENABLED=true`
 - Local ASR toggles:
   - `ASR_ENABLED=true`
-  - `ASR_MODEL=openai/whisper-medium`
-  - `ASR_PYTHON_BIN=python3`
+  - `ASR_MODEL=Xenova/whisper-small`
 
 ## Monorepo Layout
 
@@ -341,7 +337,6 @@ Persistence safety:
 - `npm run tui`
 - `npm run docker:redeploy`
 - `npm run hooks:install`
-- `npm run asr:install`
 - `npm run lint`
 - `npm run typecheck`
 - `npm test`

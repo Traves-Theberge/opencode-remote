@@ -80,11 +80,7 @@ Run before release or deployment:
 npm run verify
 ```
 
-Install local ASR prereqs on host runtime:
-
-```bash
-npm run asr:install
-```
+Local ASR runs via Transformers.js in the Node runtime; no Python setup is required.
 
 Optional combined pipeline:
 
@@ -214,22 +210,13 @@ Use:
 
 ### Voice and image pipeline
 
-- Voice notes are transcribed locally via Python Transformers ASR (`scripts/asr_transcribe.py`).
+- Voice notes are transcribed locally via Transformers.js (`src/media/asr.ts`).
 - Image uploads are attached to prompt calls as OpenCode file parts.
-- Required runtime packages for voice transcription:
-  - Python 3
-  - `transformers`
-
-Example install:
-
-```bash
-python3 -m pip install --upgrade transformers
-```
 
 Config keys:
 
 - `media.enabled`, `media.voiceEnabled`, `media.imageEnabled`
-- `asr.enabled`, `asr.model`, `asr.pythonBin`, `asr.timeoutMs`
+- `asr.enabled`, `asr.model`, `asr.cacheDir`, `asr.timeoutMs`
 
 ## Data Retention Notes
 

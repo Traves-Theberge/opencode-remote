@@ -26,7 +26,6 @@ else
 fi
 
 npm --prefix "$INSTALL_DIR" install
-bash "$INSTALL_DIR/scripts/install-asr-prereqs.sh" || true
 
 printf "\nInstalled OpenCode Remote at %s\n" "$INSTALL_DIR"
 printf "Next steps:\n"

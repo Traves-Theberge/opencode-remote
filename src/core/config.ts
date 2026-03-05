@@ -44,9 +44,9 @@ const defaults = {
   },
   asr: {
     enabled: true,
-    provider: 'transformers-local',
-    model: 'openai/whisper-medium',
-    pythonBin: 'python3',
+    provider: 'transformersjs-local',
+    model: 'Xenova/whisper-small',
+    cacheDir: './data/models',
     timeoutMs: 180_000,
   },
   opencode: {

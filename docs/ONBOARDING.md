@@ -28,7 +28,6 @@ cd ~/opencode-remote
 Run:
 
 ```bash
-npm run asr:install
 npm run cli -- setup
 ```
 
