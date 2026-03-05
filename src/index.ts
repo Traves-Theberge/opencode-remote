@@ -92,6 +92,7 @@ class App {
   telegramConflictAlertedAtCount: number;
   telegramConflictLastAlertAt: number;
   progressAckCounter: number;
+  lastProgressMessage: string;
   asr: TransformersAsr;
 
   constructor() {
@@ -133,6 +134,7 @@ class App {
     this.telegramConflictAlertedAtCount = 0;
     this.telegramConflictLastAlertAt = 0;
     this.progressAckCounter = 0;
+    this.lastProgressMessage = '';
     this.asr = new TransformersAsr();
   }
 
@@ -745,21 +747,50 @@ class App {
 
   formatProgressAck(commandType: string): string {
     const templates = [
-      `Processing - running ${commandType}.`,
-      `Processing - your request is in flight.`,
-      `Processing - ${commandType} in progress.`,
-      `Processing - let me cook for a sec.`,
-      `Processing - we are on it.`,
-      `Processing - output coming shortly.`,
-      `Processing - executing with style.`,
-      `Processing - this one is underway.`,
-      `Processing - smooth and spicy.`,
-      `Processing - handled. Results soon.`,
+      // Running/Executing
+      `Running ${commandType}...`,
+      `Executing ${commandType}...`,
+      `Processing your request...`,
+      // Status
+      `Your request is being handled...`,
+      `Working on it...`,
+      `Almost done...`,
+      // Simple
+      `One moment...`,
+      `Please wait...`,
+      `Just a second...`,
+      // Varied
+      `Hang on...`,
+      `On it...`,
+      `Let me work on that...`,
+      `Give me a moment...`,
+      `Coming right up...`,
+      `Let me check that for you...`,
+      `Looking into it...`,
+      `Handling your request...`,
+      // Confident
+      `Got it...`,
+      `Sure thing...`,
+      `No problem...`,
+      `Consider it done...`,
+      // In progress
+      `In progress...`,
+      `Currently processing...`,
+      `Task in flight...`,
+      // Reassuring
+      `You're all set...`,
+      `Starting now...`,
+      `Initializing...`,
     ];
 
-    const randomOffset = Math.floor(Math.random() * templates.length);
-    const index = (this.progressAckCounter + randomOffset) % templates.length;
-    return templates[index] || templates[0] || 'Processing now - working...';
+    // Filter out the last message to avoid repeats
+    const available = templates.filter(t => t !== this.lastProgressMessage);
+    const randomIndex = Math.floor(Math.random() * available.length);
+    const selected = available[randomIndex];
+    const message = selected !== undefined ? selected : templates[0]!;
+    
+    this.lastProgressMessage = message;
+    return message;
   }
 
   installShutdownHandlers() {
