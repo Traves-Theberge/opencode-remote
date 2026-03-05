@@ -456,7 +456,7 @@ export class CommandExecutor {
     if (typeof value === 'string') {
       return value;
     }
-    return `\n\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
+    return JSON.stringify(value, null, 2);
   }
 
   formatModelProvidersSummary(value: unknown, providerFilter = ''): string {

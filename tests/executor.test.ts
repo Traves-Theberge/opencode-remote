@@ -133,7 +133,7 @@ test('executes advanced namespace intents through adapter', async () => {
   const methods = adapter.called.map((entry) => entry.method);
   assert.ok(String(modelSummary).includes('Tip: `/model list full`'));
   assert.ok(!String(modelSummary).includes('```json'));
-  assert.ok(String(modelFull).includes('```json'));
+  assert.ok(!String(modelFull).includes('```json'));
   assert.equal(methods.includes('getModelStatus'), true);
   assert.equal(methods.includes('setModel'), true);
   assert.equal(methods.includes('listTools'), true);
