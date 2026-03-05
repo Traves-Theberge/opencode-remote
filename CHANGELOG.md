@@ -141,6 +141,7 @@ All notable changes to this project are documented in this file.
 - Telegram callback acknowledgement now safely ignores stale callback query errors (`query is too old` / `query ID is invalid`).
 - Chat response body cleanup: removed `Ref:`, `Run:`, and `Next:` sections for cleaner Telegram output.
 - Help menu cleanup: removed `/runs`, `/run`, and `/shell` from default help output.
+- Legacy `/run` and `/shell` slash commands now map to prompt text handling instead of execution endpoints.
 - Added `/last` and `/latest` aliases to fetch the most recent run output quickly.
 - `/get` now defaults to latest run output when no run ID is provided.
 - `/abort` confirmation text now reads `Stopped active run(s).` for clearer intent.
@@ -149,6 +150,9 @@ All notable changes to this project are documented in this file.
   - `scripts/hooks/post-commit`
   - `scripts/install-git-hook-post-commit.sh`
   - `npm run hooks:install`
+- Added Telegram media ingestion for voice/audio/photo/document image messages.
+- Added local Transformers ASR integration (`src/media/asr.ts`, `scripts/asr_transcribe.py`) for Telegram voice notes.
+- Added image attachment pass-through to OpenCode prompt calls using file parts.
 - Telegram polling lease acquisition now auto-retries every 5s when lease is held by another instance, preventing post-redeploy dead polling states.
 - `/model list` now returns a compact provider/model summary by default to prevent Telegram message floods.
 - Added `/model list full` for explicit full provider JSON output when needed.

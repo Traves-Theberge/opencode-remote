@@ -16,6 +16,8 @@ Implementation is TypeScript-first (`src/**/*.ts`, `tests/**/*.ts`) with strict 
 - Owner/allowlist access control
 - Confirmation flow for dangerous actions
 - Durable run retrieval (`/last`, `/get [runId]`)
+- Voice note transcription (local Transformers ASR)
+- Image attachment pass-through to OpenCode prompt sessions
 - Retry + dead-letter capture for inbound transport failures
 
 ## Architecture
@@ -41,6 +43,7 @@ Request flow:
 - Local OpenCode server (`http://localhost:4096` by default)
 - WhatsApp account for pairing (if WhatsApp transport enabled)
 - Telegram bot token (if Telegram transport enabled)
+- Python 3 with `transformers` installed for voice transcription
 
 ## Quick Start
 
@@ -169,6 +172,14 @@ Notes:
 - `TELEGRAM_OWNER_USER_ID` auto-binds owner access on startup.
 - Telegram polling supports one active consumer per bot token. Use a single running instance for a token.
 - Set `SECURITY_REQUIRE_ENV_TOKENS=true` to force env-only secret loading and reject persisted plaintext token config.
+- Media toggles:
+  - `MEDIA_ENABLED=true`
+  - `MEDIA_VOICE_ENABLED=true`
+  - `MEDIA_IMAGE_ENABLED=true`
+- Local ASR toggles:
+  - `ASR_ENABLED=true`
+  - `ASR_MODEL=openai/whisper-medium`
+  - `ASR_PYTHON_BIN=python3`
 
 ## Monorepo Layout
 
@@ -268,6 +279,12 @@ Common commands:
 - `/abort`
 - `/last`
 - `/get [runId]`
+
+Media usage:
+
+- Send a Telegram voice note -> transcribed locally -> forwarded as prompt text.
+- Send a Telegram image/photo -> attached to prompt in the active session.
+- Add a caption to image messages to steer analysis; no caption defaults to `Please analyze this image.`
 
 Advanced control-plane namespaces:
 

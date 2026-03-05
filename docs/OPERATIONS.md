@@ -6,6 +6,7 @@
 - Audit events: SQLite `audit` table
 - Dead letters: SQLite `dead_letters` table
 - WhatsApp local auth: `./.wwebjs_auth`
+- Media temp files: `media.tempPath` (default `./data/media`)
 
 ## Start and Stop
 
@@ -204,6 +205,25 @@ Use:
 - `/last` or `/latest` fetches the newest run output for your user.
 - `/get` without an ID also fetches the newest run output.
 - `/get <runId>` fetches a specific run output.
+
+### Voice and image pipeline
+
+- Voice notes are transcribed locally via Python Transformers ASR (`scripts/asr_transcribe.py`).
+- Image uploads are attached to prompt calls as OpenCode file parts.
+- Required runtime packages for voice transcription:
+  - Python 3
+  - `transformers`
+
+Example install:
+
+```bash
+python3 -m pip install --upgrade transformers
+```
+
+Config keys:
+
+- `media.enabled`, `media.voiceEnabled`, `media.imageEnabled`
+- `asr.enabled`, `asr.model`, `asr.pythonBin`, `asr.timeoutMs`
 
 ## Data Retention Notes
 

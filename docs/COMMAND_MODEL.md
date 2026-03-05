@@ -63,3 +63,9 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 - Per-user concurrency guard prevents simultaneous command overlap.
 - Path traversal is blocked outside workspace root.
 - Unknown slash command falls back to prompt intent.
+
+## Telegram Media Inputs
+
+- Voice/audio messages are transcribed locally (Transformers ASR) and routed as prompt text.
+- Image/photo messages are attached to prompt calls as file parts.
+- Image messages without caption use a default prompt: `Please analyze this image.`

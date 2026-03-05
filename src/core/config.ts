@@ -34,6 +34,20 @@ const defaults = {
     sendChunkDelayMs: 1100,
     sendMaxRetries: 3,
     sendMaxChunks: 8,
+    mediaDownloadMaxBytes: 15_000_000,
+  },
+  media: {
+    enabled: true,
+    imageEnabled: true,
+    voiceEnabled: true,
+    tempPath: './data/media',
+  },
+  asr: {
+    enabled: true,
+    provider: 'transformers-local',
+    model: 'openai/whisper-medium',
+    pythonBin: 'python3',
+    timeoutMs: 180_000,
   },
   opencode: {
     serverUrl: 'http://localhost:4096',

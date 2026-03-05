@@ -73,8 +73,6 @@ const COMMAND_TIERS = {
   'opencode commands': 'safe',
   'opencode diagnostics': 'safe',
   prompt: 'elevated',
-  run: 'dangerous',
-  shell: 'dangerous',
   'session abort': 'dangerous',
   abort: 'dangerous',
 };
@@ -168,9 +166,8 @@ export class CommandRouter {
       case 'opencode':
         return this.parseOpencode(rest);
       case 'run':
-        return this.toParsed('run', [rest.join(' ')]);
       case 'shell':
-        return this.toParsed('shell', [rest.join(' ')]);
+        return this.toParsed('prompt', [rest.join(' ').trim() || line]);
       case 'prompt':
         return this.toParsed('prompt', [rest.join(' ')]);
       case 'users':
@@ -362,8 +359,8 @@ export class CommandRouter {
       status: this.handleStatus.bind(this),
       help: this.handleHelp.bind(this),
       prompt: this.handlePrompt.bind(this),
-      run: this.handleRun.bind(this),
-      shell: this.handleShell.bind(this),
+      run: this.handlePrompt.bind(this),
+      shell: this.handlePrompt.bind(this),
       'session list': this.handleSessionList.bind(this),
       'session status': this.handleSessionStatus.bind(this),
       'session use': this.handleSessionUse.bind(this),
@@ -416,14 +413,6 @@ export class CommandRouter {
 
   async handlePrompt(args: string[]) {
     return { type: 'prompt', text: args.join(' ').trim() };
-  }
-
-  async handleRun(args: string[]) {
-    return { type: 'run', command: args.join(' ').trim() };
-  }
-
-  async handleShell(args: string[]) {
-    return { type: 'shell', command: args.join(' ').trim() };
   }
 
   async handleSessionList() {

@@ -109,7 +109,13 @@ export class CommandExecutor {
       }
 
       case 'prompt': {
-        const result = await this.adapter.sendPrompt(String(intent.text || ''), context);
+        const files = Array.isArray(intent.files)
+          ? (intent.files as Array<{ filePath: string; mimeType: string; filename?: string }>)
+          : [];
+        const result = await this.adapter.sendPrompt(String(intent.text || ''), {
+          ...context,
+          files,
+        });
         this.access.setActiveSessionId(session, result.sessionId);
         return this.formatter.formatPromptResult(result);
       }

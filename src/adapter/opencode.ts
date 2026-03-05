@@ -1,12 +1,19 @@
 import { createOpencodeClient } from '@opencode-ai/sdk';
 import { config } from '../core/config.js';
 import { logger } from '../core/logger.js';
+import { readFileSync } from 'node:fs';
 
 type OpencodeClient = ReturnType<typeof createOpencodeClient>;
 
 interface AdapterContext {
   sessionId?: string | null;
   directory?: string | null;
+}
+
+interface PromptFileAttachment {
+  filePath: string;
+  mimeType: string;
+  filename?: string;
 }
 
 /**
@@ -87,7 +94,7 @@ export class OpenCodeAdapter {
   /** Send prompt text to OpenCode prompt endpoint. */
   async sendPrompt(
     text: string,
-    options: AdapterContext = {},
+    options: AdapterContext & { files?: PromptFileAttachment[] } = {},
   ): Promise<{ sessionId: string; messageId: string; response: string }> {
     const sessionId = this.resolveSessionId(options);
     
@@ -100,7 +107,7 @@ export class OpenCodeAdapter {
       const result = await this.client.session.prompt({
         path: { id: sessionId },
         body: {
-          parts: [{ type: 'text', text }],
+          parts: this.buildPromptParts(text, options.files || []) as never,
         },
         query: this.buildQuery(options),
       });
@@ -117,6 +124,36 @@ export class OpenCodeAdapter {
     } catch (error) {
       logger.error({ err: error, sessionId }, 'Failed to send prompt');
       throw error;
+    }
+  }
+
+  buildPromptParts(text: string, files: PromptFileAttachment[]): Array<Record<string, unknown>> {
+    const parts: Array<Record<string, unknown>> = [{ type: 'text', text }];
+
+    for (const file of files) {
+      const dataUrl = this.toDataUrl(file.filePath, file.mimeType);
+      if (!dataUrl) {
+        continue;
+      }
+      parts.push({
+        type: 'file',
+        mime: file.mimeType,
+        filename: file.filename || undefined,
+        url: dataUrl,
+      });
+    }
+
+    return parts;
+  }
+
+  toDataUrl(filePath: string, mimeType: string): string | null {
+    try {
+      const bytes = readFileSync(filePath);
+      const base64 = bytes.toString('base64');
+      return `data:${mimeType};base64,${base64}`;
+    } catch (error) {
+      logger.warn({ err: error, filePath }, 'Failed to encode attachment as data URL');
+      return null;
     }
   }
 

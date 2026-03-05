@@ -12,6 +12,16 @@ import { MessageFormatter } from './presentation/formatter.js';
 import { LocalStore } from './storage/sqlite.js';
 import { randomUUID } from 'node:crypto';
 import { looksLikePlaceholderToken } from './security/redaction.js';
+import { TransformersAsr } from './media/asr.js';
+import { unlink } from 'node:fs/promises';
+
+interface IncomingMediaPayload {
+  kind: 'voice' | 'audio' | 'image';
+  mimeType: string;
+  filename: string;
+  filePath: string;
+  caption?: string;
+}
 
 interface IncomingMessageEvent {
   channel?: 'whatsapp' | 'telegram';
@@ -23,6 +33,7 @@ interface IncomingMessageEvent {
   username?: string;
   chatId?: string;
   callbackData?: string;
+  media?: IncomingMediaPayload;
 }
 
 interface RoutedIntent {
@@ -81,6 +92,7 @@ class App {
   telegramConflictAlertedAtCount: number;
   telegramConflictLastAlertAt: number;
   progressAckCounter: number;
+  asr: TransformersAsr;
 
   constructor() {
     this.store = new LocalStore(String(config.get('storage.dbPath') || './data/opencode-remote.db'));
@@ -121,6 +133,7 @@ class App {
     this.telegramConflictAlertedAtCount = 0;
     this.telegramConflictLastAlertAt = 0;
     this.progressAckCounter = 0;
+    this.asr = new TransformersAsr();
   }
 
   /**
@@ -269,10 +282,13 @@ class App {
     const sender = this.resolveSender(event);
 
     return this.withSenderLock(sender || `${channel}:${event?.userId || rawFrom || 'unknown'}`, async () => {
-      const body = event?.body || '';
+      let body = event?.body || '';
       const messageId = event?.messageId || `${channel}-generated-${Date.now()}`;
       const dedupSender = this.resolveDedupSender(event, sender);
       const dedupKey = this.buildDedupKey(channel, dedupSender, messageId);
+      const media = event?.media || null;
+      const promptFiles: Array<{ filePath: string; mimeType: string; filename: string }> = [];
+      const cleanupPaths: string[] = [];
 
       if (!sender) {
           return this.formatter.formatError(
@@ -314,7 +330,51 @@ class App {
         messageId,
         channel,
         body,
+        media: media
+          ? {
+              kind: media.kind,
+              mimeType: media.mimeType,
+              filename: media.filename,
+            }
+          : null,
       });
+
+      if (media) {
+        cleanupPaths.push(media.filePath);
+        if (media.kind === 'image' && Boolean(config.get('media.imageEnabled'))) {
+          promptFiles.push({
+            filePath: media.filePath,
+            mimeType: media.mimeType,
+            filename: media.filename,
+          });
+          if (!body.trim()) {
+            body = String(media.caption || '').trim() || 'Please analyze this image.';
+          }
+        }
+
+        if ((media.kind === 'voice' || media.kind === 'audio') && Boolean(config.get('media.voiceEnabled'))) {
+          try {
+            const transcript = await this.asr.transcribe(media.filePath);
+            if (!transcript.text) {
+              return this.formatter.formatWarning('Voice', 'Could not transcribe voice message.');
+            }
+            body = transcript.text;
+            this.auditEvent('media.transcribed', {
+              sender,
+              channel,
+              kind: media.kind,
+              filename: media.filename,
+              textLength: transcript.text.length,
+            });
+          } catch (error) {
+            logger.warn({ err: error }, 'Voice transcription failed');
+            return this.formatter.formatError(
+              'Voice',
+              `Transcription failed: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+      }
 
       const access = this.access.checkAccess(sender);
       if (!access.allowed) {
@@ -362,6 +422,9 @@ class App {
       }
 
       const intent = routed as RoutedIntent;
+      if (intent.type === 'prompt' && promptFiles.length > 0) {
+        intent.files = promptFiles;
+      }
       const safety = this.safety.evaluate({
         type: intent.type,
         command: typeof intent.command === 'string' ? intent.command : undefined,
@@ -434,6 +497,15 @@ class App {
         );
       } finally {
         this.access.setBusy(session, false);
+        await Promise.all(
+          cleanupPaths.map(async (filePath) => {
+            try {
+              await unlink(filePath);
+            } catch {
+              // best-effort temp cleanup
+            }
+          }),
+        );
       }
     });
   }

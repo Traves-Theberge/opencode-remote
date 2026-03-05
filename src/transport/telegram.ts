@@ -1,6 +1,16 @@
 import http from 'node:http';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { logger } from '../core/logger.js';
 import { config } from '../core/config.js';
+
+interface TelegramMediaPayload {
+  kind: 'voice' | 'audio' | 'image';
+  mimeType: string;
+  filename: string;
+  filePath: string;
+  caption?: string;
+}
 
 interface TelegramInboundEvent {
   channel: 'telegram';
@@ -12,6 +22,7 @@ interface TelegramInboundEvent {
   username: string;
   chatId: string;
   callbackData?: string;
+  media?: TelegramMediaPayload;
 }
 
 interface TelegramDeadLetter {
@@ -32,6 +43,32 @@ type TelegramUpdate = {
     date?: number;
     from?: { id?: number; username?: string };
     chat?: { id?: number; type?: string };
+    caption?: string;
+    voice?: {
+      file_id?: string;
+      mime_type?: string;
+      file_size?: number;
+      duration?: number;
+    };
+    audio?: {
+      file_id?: string;
+      mime_type?: string;
+      file_name?: string;
+      file_size?: number;
+      duration?: number;
+    };
+    photo?: Array<{
+      file_id?: string;
+      width?: number;
+      height?: number;
+      file_size?: number;
+    }>;
+    document?: {
+      file_id?: string;
+      mime_type?: string;
+      file_name?: string;
+      file_size?: number;
+    };
   };
   callback_query?: {
     id?: string;
@@ -53,7 +90,7 @@ const DEFAULT_KEYBOARD = {
       { text: 'Diff', callback_data: 'oc:diff' },
     ],
     [
-      { text: 'Runs', callback_data: 'oc:runs' },
+      { text: 'Last', callback_data: 'oc:runs' },
       { text: 'Abort', callback_data: 'oc:abort' },
       { text: 'Help', callback_data: 'oc:help' },
     ],
@@ -143,7 +180,7 @@ export class TelegramTransport {
       { command: 'session_list', description: 'List sessions' },
       { command: 'session_new', description: 'Create session' },
       { command: 'diff', description: 'Show diff' },
-      { command: 'runs', description: 'Show recent run IDs' },
+      { command: 'last', description: 'Show latest run output' },
       { command: 'abort', description: 'Abort active run' },
     ];
 
@@ -404,11 +441,6 @@ export class TelegramTransport {
   }
 
   async handleMessageUpdate(message: NonNullable<TelegramUpdate['message']>, updateId?: number) {
-    const text = String(message?.text || '').trim();
-    if (!text) {
-      return;
-    }
-
     if (!this.isAllowedChatType(message?.chat?.type)) {
       logger.info({ chatType: message?.chat?.type }, 'Ignoring Telegram group message by policy');
       return;
@@ -417,8 +449,16 @@ export class TelegramTransport {
     const userId = String(message?.from?.id || '');
     const username = String(message?.from?.username || '');
     const chatId = String(message?.chat?.id || '');
+    const text = String(message?.text || '').trim();
+    const caption = String(message?.caption || '').trim();
+    const media = await this.extractMediaPayload(message, updateId);
+    const bodyText = text || caption || '';
 
-    const normalizedBody = this.normalizeBody(text);
+    if (!bodyText && !media) {
+      return;
+    }
+
+    const normalizedBody = this.normalizeBody(bodyText);
     const response = await this.onMessage({
       channel: 'telegram',
       from: chatId,
@@ -428,6 +468,7 @@ export class TelegramTransport {
       userId,
       username,
       chatId,
+      media: media || undefined,
     });
 
     if (response) {
@@ -525,7 +566,8 @@ export class TelegramTransport {
     const map: Record<string, string> = {
       status: '/status',
       help: '/help',
-      runs: '/runs',
+      last: '/last',
+      runs: '/last',
       diff: '/diff',
       abort: '/abort',
       sessions: '/session list',
@@ -540,7 +582,7 @@ export class TelegramTransport {
       'oc:status': '/status',
       'oc:session_list': '/session list',
       'oc:diff': '/diff',
-      'oc:runs': '/runs',
+      'oc:runs': '/last',
       'oc:help': '/help',
       'oc:abort': '/abort',
     };
@@ -822,6 +864,110 @@ export class TelegramTransport {
     }
 
     return data;
+  }
+
+  async extractMediaPayload(
+    message: NonNullable<TelegramUpdate['message']>,
+    updateId?: number,
+  ): Promise<TelegramMediaPayload | null> {
+    if (!config.get('media.enabled')) {
+      return null;
+    }
+
+    if (config.get('media.voiceEnabled')) {
+      const voiceId = String(message?.voice?.file_id || '');
+      const audioId = String(message?.audio?.file_id || '');
+      if (voiceId || audioId) {
+        const fileId = voiceId || audioId;
+        const mimeType = String(message?.voice?.mime_type || message?.audio?.mime_type || 'audio/ogg');
+        const extension = this.extensionForMime(mimeType, 'ogg');
+        const localPath = await this.downloadTelegramFileToTemp(fileId, extension, updateId);
+        return {
+          kind: voiceId ? 'voice' : 'audio',
+          mimeType,
+          filename: String(message?.audio?.file_name || `telegram-audio-${Date.now()}.${extension}`),
+          filePath: localPath,
+          caption: String(message?.caption || ''),
+        };
+      }
+    }
+
+    if (config.get('media.imageEnabled')) {
+      const photo = this.pickLargestPhoto(message?.photo || []);
+      const documentImageId =
+        String(message?.document?.mime_type || '').startsWith('image/')
+          ? String(message?.document?.file_id || '')
+          : '';
+      const fileId = String(photo?.file_id || documentImageId || '');
+      if (fileId) {
+        const mimeType = photo
+          ? 'image/jpeg'
+          : String(message?.document?.mime_type || 'image/jpeg');
+        const extension = this.extensionForMime(mimeType, 'jpg');
+        const localPath = await this.downloadTelegramFileToTemp(fileId, extension, updateId);
+        return {
+          kind: 'image',
+          mimeType,
+          filename: String(message?.document?.file_name || `telegram-image-${Date.now()}.${extension}`),
+          filePath: localPath,
+          caption: String(message?.caption || ''),
+        };
+      }
+    }
+
+    return null;
+  }
+
+  pickLargestPhoto(
+    photos: Array<{ file_id?: string; width?: number; height?: number; file_size?: number }>,
+  ): { file_id?: string; width?: number; height?: number; file_size?: number } | null {
+    if (!Array.isArray(photos) || photos.length === 0) {
+      return null;
+    }
+    const sorted = [...photos].sort((a, b) => Number(b.file_size || 0) - Number(a.file_size || 0));
+    return sorted[0] || null;
+  }
+
+  extensionForMime(mimeType: string, fallback: string): string {
+    const normalized = String(mimeType || '').toLowerCase();
+    const map: Record<string, string> = {
+      'audio/ogg': 'ogg',
+      'audio/mpeg': 'mp3',
+      'audio/mp4': 'm4a',
+      'audio/wav': 'wav',
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+    };
+    return map[normalized] || fallback;
+  }
+
+  async downloadTelegramFileToTemp(fileId: string, extension: string, updateId?: number): Promise<string> {
+    const fileInfo = (await this.api('getFile', { file_id: fileId })) as { result?: { file_path?: string } };
+    const filePath = String(fileInfo?.result?.file_path || '');
+    if (!filePath) {
+      throw new Error('Telegram getFile returned no file_path');
+    }
+
+    const token = String(config.get('telegram.botToken') || '').trim();
+    const fileUrl = `https://api.telegram.org/file/bot${token}/${filePath}`;
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+      throw new Error(`Telegram file download failed (${response.status})`);
+    }
+
+    const bytes = Buffer.from(await response.arrayBuffer());
+    const maxBytes = Math.max(100_000, Number(config.get('telegram.mediaDownloadMaxBytes')) || 15_000_000);
+    if (bytes.length > maxBytes) {
+      throw new Error(`Telegram media too large (${bytes.length} > ${maxBytes})`);
+    }
+
+    const tempRoot = String(config.get('media.tempPath') || './data/media');
+    mkdirSync(tempRoot, { recursive: true });
+    const safeId = String(updateId || fileId).replace(/[^A-Za-z0-9_-]/g, '');
+    const output = path.resolve(tempRoot, `tg-${Date.now()}-${safeId}.${extension}`);
+    writeFileSync(output, bytes);
+    return output;
   }
 
   isPollingConflict(error: unknown): boolean {
