@@ -130,7 +130,7 @@ All notable changes to this project are documented in this file.
 
 - Chat command UX now supports slash commands and natural language without requiring `@oc` prefix (legacy prefix still accepted).
 - Help output is redesigned into a concise, task-oriented menu with command descriptions.
-- Telegram input normalization now maps plain shorthand (status/help/runs/sessions/diff/abort/pwd) to slash commands.
+- Telegram input normalization now maps plain shorthand (status/help/last/sessions/diff/abort/pwd) to slash commands.
 - Telegram polling conflict handling now applies controlled backoff with degraded-state visibility.
 - Telegram polling conflict owner alerts are now cooldown-limited to reduce repeated notification spam.
 - Telegram polling startup now prepares session state (`deleteWebhook` + `close` with retry-after-aware cooldown handling).
@@ -145,6 +145,10 @@ All notable changes to this project are documented in this file.
 - `/get` now defaults to latest run output when no run ID is provided.
 - `/abort` confirmation text now reads `Stopped active run(s).` for clearer intent.
 - Progress acknowledgements now use `Processing now - ...` with randomized friendly variants.
+- Added optional post-commit auto-redeploy hook tooling:
+  - `scripts/hooks/post-commit`
+  - `scripts/install-git-hook-post-commit.sh`
+  - `npm run hooks:install`
 - Telegram polling lease acquisition now auto-retries every 5s when lease is held by another instance, preventing post-redeploy dead polling states.
 - `/model list` now returns a compact provider/model summary by default to prevent Telegram message floods.
 - Added `/model list full` for explicit full provider JSON output when needed.

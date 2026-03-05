@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ -n "${CI:-}" ]]; then
+  exit 0
+fi
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$REPO_ROOT" ]]; then
+  exit 0
+fi
+
+if [[ "${OPENCODE_REMOTE_SKIP_POST_COMMIT_REDEPLOY:-0}" == "1" ]]; then
+  exit 0
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  exit 0
+fi
+
+if [[ ! -x "$REPO_ROOT/scripts/docker-redeploy.sh" ]]; then
+  exit 0
+fi
+
+LOG_DIR="$REPO_ROOT/data"
+mkdir -p "$LOG_DIR" 2>/dev/null || true
+if [[ ! -w "$LOG_DIR" ]]; then
+  LOG_DIR="$REPO_ROOT/.git"
+fi
+LOG_FILE="$LOG_DIR/post-commit-redeploy.log"
+
+(
+  echo "[$(date -Is)] post-commit redeploy started"
+  OPENCODE_SERVER_URL="${OPENCODE_SERVER_URL:-http://127.0.0.1:4096}" npm --prefix "$REPO_ROOT" run docker:redeploy
+  echo "[$(date -Is)] post-commit redeploy finished"
+) >>"$LOG_FILE" 2>&1 &
+
+echo "post-commit: docker redeploy started in background (log: $LOG_FILE)"

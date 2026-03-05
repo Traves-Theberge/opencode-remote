@@ -98,6 +98,16 @@ npm run docker:redeploy
 This performs a no-cache image rebuild and force-recreates the `remote` service to prevent stale code/image mismatches.
 By default it sets `OPENCODE_REMOTE_BUILD_ID` to `git-short-sha + timestamp` so startup fingerprint logs prove which build is running.
 
+Optional post-commit auto-redeploy hook:
+
+```bash
+npm run hooks:install
+```
+
+This installs `.git/hooks/post-commit` locally and triggers `npm run docker:redeploy` in the background after each commit.
+Disable temporarily with `OPENCODE_REMOTE_SKIP_POST_COMMIT_REDEPLOY=1`.
+Hook logs are written to `data/post-commit-redeploy.log` when writable, otherwise `.git/post-commit-redeploy.log`.
+
 ## Initial Provisioning
 
 Set owner phone number:

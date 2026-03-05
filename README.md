@@ -88,6 +88,14 @@ docker compose logs -f remote
 This redeploy command forces a no-cache image build and container recreate so Docker always runs the latest source changes.
 It also stamps each build with `OPENCODE_REMOTE_BUILD_ID` (git short SHA + timestamp by default) for runtime fingerprint verification.
 
+Install optional auto-redeploy on commit:
+
+```bash
+npm run hooks:install
+```
+
+This installs a local git `post-commit` hook that starts `npm run docker:redeploy` in the background after each commit.
+
 Webhook-first production profile:
 
 ```bash
@@ -250,7 +258,7 @@ When polling is used, OpenCode Remote reports polling conflict backoff in `/stat
 
 Telegram normalization:
 
-- Plain text shorthand is normalized to slash commands where available (`status`, `help`, `runs`, `sessions`, ...)
+- Plain text shorthand is normalized to slash commands where available (`status`, `help`, `last`, `sessions`, ...)
 - Other plain text is treated as prompt input
 
 Common commands:
@@ -311,6 +319,8 @@ Persistence safety:
 - `npm run dev`
 - `npm run cli -- <command>`
 - `npm run tui`
+- `npm run docker:redeploy`
+- `npm run hooks:install`
 - `npm run lint`
 - `npm run typecheck`
 - `npm test`
