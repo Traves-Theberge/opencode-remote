@@ -3,11 +3,11 @@
 ![Image 1](./opencode-remote.png)
 
 OpenCode Remote is a Telegram-operated control plane for a local OpenCode runtime.
-It gives you a reliable chat interface for prompting, command execution, session control, safety confirmations, and operator visibility without exposing your workstation to the public internet.
+It gives you a reliable chat interface for prompting, command execution, session control, safety confirmations, and operator visibility.
 
 ## What It Is
 
-- Telegram is the only transport surface.
+- Remote access is handled through Telegram.
 - OpenCode remains the execution engine and session authority.
 - OpenCode Remote adds routing, policy enforcement, persistence, retries, and operator tooling.
 - SQLite stores control-plane state (`users`, `bindings`, `confirmations`, `runs`, `messages`, `audit`, `dead_letters`).
@@ -18,9 +18,8 @@ It gives you a reliable chat interface for prompting, command execution, session
 - Deterministic slash-command model for control-plane actions.
 - Owner + allowlist access control with Telegram identity binding.
 - Confirmation workflow for dangerous operations.
-- Durable run history retrieval with `/last`.
 - Inbound dedupe and outbound retry protections.
-- Dead-letter capture for transport failures.
+- Stores failed message processing attempts for debugging.
 - Local voice transcription and image/PDF prompt attachment pipeline.
 
 ## High-Level Request Flow
@@ -118,32 +117,26 @@ If both are enabled, webhook mode wins and polling is skipped with warning.
 - Slash command -> control-plane intent
 - Unknown slash commands -> deterministic error (no prompt fallback)
 
-Common commands:
-
-- `/help`
-- `/status`
-- `/session list`
-- `/last`
-- `/abort`
-
-Admin commands:
-
-- `/users list`
-- `/users add <+number>`
-- `/users remove <+number>`
-- `/users bindtg <telegramUserId> <+number> [username]`
-- `/users unbindtg <telegramUserId>`
-- `/users tglist`
-- `/lock`
-- `/unlock`
-
-Advanced namespaces:
-
-- `/model ...`
-- `/tools ...`
-- `/mcp ...`
-- `/skills ...`
-- `/opencode ...`
+| Category | Command | Description |
+| --- | --- | --- |
+| Common | `/help` | Show available commands and usage hints. |
+| Common | `/status` | Show runtime health and active context. |
+| Common | `/session list` | List available OpenCode sessions. |
+| Common | `/last` | Show the most recent stored run output. |
+| Common | `/abort` | Stop the active run/session operation. |
+| Admin | `/users list` | List allowlisted users. |
+| Admin | `/users add <+number>` | Add a phone number to the allowlist. |
+| Admin | `/users remove <+number>` | Remove a phone number from the allowlist. |
+| Admin | `/users bindtg <telegramUserId> <+number> [username]` | Bind a Telegram user to an allowlisted phone number. |
+| Admin | `/users unbindtg <telegramUserId>` | Remove an existing Telegram user binding. |
+| Admin | `/users tglist` | List active Telegram identity bindings. |
+| Admin | `/lock` | Lock command execution for non-owner sessions. |
+| Admin | `/unlock` | Unlock command execution after a lock event. |
+| Advanced | `/model ...` | Inspect and update model/provider configuration. |
+| Advanced | `/tools ...` | Inspect tool ids and tool availability. |
+| Advanced | `/mcp ...` | Manage MCP server registration and connectivity. |
+| Advanced | `/skills ...` | List available skills exposed by OpenCode. |
+| Advanced | `/opencode ...` | Run OpenCode diagnostics and capability queries. |
 
 See `docs/COMMAND_MODEL.md` for policy and permission detail.
 
@@ -185,7 +178,7 @@ Vision behavior:
 - Ingress rate limiting enabled by default.
 - Group chats blocked by default (`telegram.allowGroupChats=false`).
 - Confirmation requirement enforced for dangerous actions.
-- Audit and dead-letter payloads are redacted before persistence.
+- Audit logs and failed-message records are redacted before persistence.
 - Local DB artifacts remain git-ignored (`data/`, `*.db`, `*.sqlite*`).
 
 ## Monorepo Layout
@@ -217,17 +210,3 @@ npm run verify
 ```
 
 `verify` runs lint, docs checks, typechecks, tests, and workspace smoke checks.
-
-## Documentation
-
-- `docs/README.md`
-- `docs/wiki/End-to-End-Guide.md`
-- `docs/wiki/Home.md`
-- `docs/ARCHITECTURE.md`
-- `docs/COMMAND_MODEL.md`
-- `docs/DATA_MODELS.md`
-- `docs/DATABASE_SCHEMA.md`
-- `docs/ERD.md`
-- `docs/OPERATIONS.md`
-- `docs/ONBOARDING.md`
-- `CHANGELOG.md`
