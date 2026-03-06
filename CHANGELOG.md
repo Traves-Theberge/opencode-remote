@@ -8,8 +8,8 @@ All notable changes to this project are documented in this file.
 
 - Removed `/get` command routing and standardized latest-output retrieval on `/last`.
 - Unknown slash commands now return deterministic errors instead of falling through to prompt execution.
-- Runtime is now Telegram-only: WhatsApp transport and all related config/runtime wiring were removed.
-- Removed TUI workspace and references; operations surface is CLI + Telegram.
+- Runtime is now Telegram-only, with legacy transport wiring removed.
+- Operator surface is now CLI + Telegram only.
 - Migrated docs to wiki-first structure and removed legacy `docs/architecture/` tree.
 - Verification docs step now performs recursive wiki link/path coverage checks.
 
