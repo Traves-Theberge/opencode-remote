@@ -12,6 +12,7 @@
 - Security review register: `docs/SECURITY_REVIEW.md`
 - System-wide security/dead-code audit (2026-03-05): `docs/SYSTEM_AUDIT_2026-03-05.md`
 - System deep component review (2026-03-05): `docs/SYSTEM_DEEP_REVIEW_2026-03-05.md`
+- Full tracked-file review checklist (2026-03-05): `docs/SYSTEM_FULL_FILE_REVIEW_2026-03-05.md`
 - Security remediation closure log: `TOFIX.md`
 - Telegram dual-channel design: `docs/plans/2026-03-01-telegram-dual-channel-design.md`
 - Release history: `CHANGELOG.md`
