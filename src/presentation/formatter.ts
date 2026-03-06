@@ -224,7 +224,7 @@ export class MessageFormatter {
       'Recent run IDs',
       ...lines,
       '',
-      'Use /get <runId> to fetch one.',
+      'Use /last to fetch the latest run output.',
     ].join('\n');
   }
 

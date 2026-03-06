@@ -9,7 +9,7 @@ Date: 2026-03-05
   - wiki home now includes role-based reading paths (operator, contributor, security)
   - docs index and README now point to the end-to-end entrypoint
 - Clarified run retrieval references across architecture docs:
-  - prefer `/last` + `/get <id>`
+  - prefer `/last`
   - `/runs` documented as a legacy alias
 - Completed and tracked full repository documentation review coverage with explicit checklist/audit artifacts.
 

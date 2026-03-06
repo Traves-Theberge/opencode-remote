@@ -162,9 +162,9 @@ test('routes run retrieval commands', async () => {
   const runs = await router.parse('/runs');
   assert.equal(runs.command, 'output runs');
 
-  const get = await router.parse('/get ABCD1234');
-  assert.equal(get.command, 'output get');
-  assert.equal(get.args[0], 'ABCD1234');
+  const last = await router.parse('/last');
+  assert.equal(last.command, 'output get');
+  assert.equal(last.args[0], '');
 });
 
 test('routes telegram binding admin commands', async () => {

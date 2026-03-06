@@ -15,7 +15,7 @@ Implementation is TypeScript-first (`src/**/*.ts`, `tests/**/*.ts`) with strict 
 - Slash-command control plane for sessions, paths, execution, and permissions
 - Owner/allowlist access control
 - Confirmation flow for dangerous actions
-- Durable run retrieval (`/last`, `/get [runId]`)
+- Durable run retrieval (`/last`)
 - Voice note transcription (local Transformers ASR)
 - Image attachment pass-through to OpenCode prompt sessions
 - Retry + dead-letter capture for inbound transport failures
@@ -298,7 +298,6 @@ Common commands:
 - `/session list`
 - `/abort`
 - `/last`
-- `/get [runId]`
 
 Media usage:
 

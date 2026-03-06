@@ -676,7 +676,7 @@ export class TelegramTransport {
     const omittedCount = Math.max(0, chunks.length - headCount - 1);
     const tail = chunks[chunks.length - 1] || '';
     const notice = this.renderMarkdownV2(
-      `... output truncated in chat (${chunks.length} chunks total, ${omittedCount} omitted). Use /get <runId> for full output.`,
+      `... output truncated in chat (${chunks.length} chunks total, ${omittedCount} omitted). Use /last to fetch the latest output again.`,
     );
 
     logger.warn(

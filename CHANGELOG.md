@@ -30,7 +30,8 @@ documented in `README.md` and `docs/COMMAND_MODEL.md`.
 - Added regression tests for vision model override routing, request-local big-pickle fallback, Telegram hard line splitting, and transient send retries.
 - Added exhaustive tracked-file review checklist documenting deep vs surface review status across the full repository.
 - Expanded documentation to include a deepwiki-style end-to-end guide with architecture map, contributor/operator/security paths, and diagram index.
-- Clarified run retrieval docs to prefer `/last` + `/get` while marking `/runs` as legacy alias.
+- Clarified run retrieval docs to prefer `/last` while marking `/runs` as legacy alias.
+- Removed `/get` command routing; unknown slash behavior now returns deterministic errors for `/get` requests.
 - Unknown slash commands now return deterministic errors instead of falling through to prompt execution.
 
 ### Added

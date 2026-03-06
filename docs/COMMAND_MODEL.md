@@ -23,7 +23,7 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 - Session control: `/session list`, `/session status [id]`, `/session use <id>`, `/session new [title]`, `/session abort <id>`
 - Execution: `/abort`
 - Permission workflow: `/permission <id> <once|always|reject>`, `/allow <id>`, `/deny <id>`
-- Output retrieval: `/last`, `/get [runId]`
+- Output retrieval: `/last`
 - Model management: `/model status`, `/model list` (summary), `/model list full`, `/model set <providerId> <modelId>`
 - Tool management: `/tools ids`, `/tools list [providerId] [modelId]`
 - MCP management: `/mcp status`, `/mcp add <name> <command>`, `/mcp connect <server>`, `/mcp disconnect <server>`
@@ -43,7 +43,7 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 | Namespace | Examples | Owner-only | Confirmation required |
 |---|---|---:|---:|
 | Access admin | `/users ...`, `/lock`, `/unlock` | Yes | No |
-| Session/path/status/read | `/status`, `/session list`, `/pwd`, `/ls`, `/last`, `/get` | No | No |
+| Session/path/status/read | `/status`, `/session list`, `/pwd`, `/ls`, `/last` | No | No |
 | Prompt | `<text>` | No | No |
 | Execution | `/abort`, `/session abort` | No | Yes |
 | Model | `/model status`, `/model list`, `/model set` | `set` only | `set` only |

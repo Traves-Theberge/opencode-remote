@@ -120,8 +120,6 @@ export class CommandRouter {
         return this.toParsed('help', []);
       case 'status':
         return this.toParsed('status', []);
-      case 'get':
-        return this.toParsed('output get', [rest[0] || '']);
       case 'last':
       case 'latest':
         return this.toParsed('output get', ['']);
