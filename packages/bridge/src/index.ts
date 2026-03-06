@@ -154,7 +154,7 @@ function normalizeStage(eventType: string): string {
   return 'other';
 }
 
-/** Build stage/transition summaries for CLI/TUI flow views. */
+/** Build stage/transition summaries for CLI flow views. */
 export function buildFlowInsights(rows: AuditRow[], latestLimit = 18): FlowInsights {
   const sorted = [...rows].sort((a, b) => {
     if (a.created_at !== b.created_at) {
@@ -202,7 +202,7 @@ export function buildFlowInsights(rows: AuditRow[], latestLimit = 18): FlowInsig
 }
 
 /**
- * Shared operational bridge used by CLI and TUI.
+ * Shared operational bridge used by CLI.
  *
  * Provides config management, DB insights, and maintenance task execution.
  */
@@ -400,7 +400,7 @@ export class OpsBridge {
     ];
   }
 
-  /** Execute named operational task for CLI/TUI consumers. */
+  /** Execute named operational task for CLI consumers. */
   executeTask(request: TaskRequest): TaskResult {
     const args = request.args || {};
 

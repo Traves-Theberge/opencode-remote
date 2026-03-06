@@ -5,7 +5,6 @@
 - SQLite DB: `storage.dbPath` (default `./data/opencode-remote.db`)
 - Audit events: SQLite `audit` table
 - Dead letters: SQLite `dead_letters` table
-- WhatsApp local auth: `./.wwebjs_auth`
 - Media temp files: `media.tempPath` (default `./data/media`)
 
 ## Start and Stop
@@ -27,7 +26,7 @@ Daemon runs through workspace entrypoint `apps/daemon/src/index.ts`.
 Graceful stop:
 
 - `Ctrl+C` or `SIGTERM`
-- App closes enabled transports (WhatsApp and/or Telegram) and event stream subscription before exit
+- App closes enabled transport(s) and event stream subscription before exit
 
 ## Management Surfaces
 
@@ -37,20 +36,7 @@ CLI (wizard + maintenance):
 npm run cli -- help
 ```
 
-TUI (visual manager shell):
-
-```bash
-npm run tui
-```
-
-TUI quick keys:
-
-- `o` onboarding wizard
-- `r` refresh dashboard and reset paging
-- `v` vacuum
-- `p` prune dead letters (30d)
-
-Bridge package (`packages/bridge`) is the shared control-plane API used by both CLI and TUI for:
+Bridge package (`packages/bridge`) is the shared control-plane API used by CLI for:
 
 - config reads/writes
 - db stats and operational tables
@@ -63,10 +49,9 @@ Security posture check:
 npm run cli -- security rotate-token-check
 ```
 
-### Flow tracking and visualizer
+### Flow tracking
 
-- TUI visualizer derives stages and transitions from `audit` events.
-- CLI equivalent is available via:
+- CLI flow insight is available via:
 
 ```bash
 npm run cli -- flow 120
@@ -131,16 +116,15 @@ Owner is auto-seeded into SQLite users on startup.
 
 ### Backup
 
-Stop the process, then copy DB and auth directories:
+Stop the process, then copy DB:
 
 ```bash
 cp data/opencode-remote.db data/opencode-remote.db.bak
-cp -r .wwebjs_auth .wwebjs_auth.bak
 ```
 
 ### Restore
 
-Stop process, replace DB/auth content, restart app.
+Stop process, replace DB content, restart app.
 
 ## Troubleshooting
 
@@ -229,7 +213,7 @@ Config keys:
 
 - `messages` table is continuously pruned for recent dedupe window.
 - `confirmations` table is pruned by expiration cleanup loop.
-- `runs`, `audit`, and `dead_letters` are operator-pruned with CLI/TUI maintenance tasks.
+- `runs`, `audit`, and `dead_letters` are operator-pruned with CLI maintenance tasks.
 - Audit and dead-letter payloads are redacted before storage for token/secret/bearer-like values.
 
 CLI prune examples:

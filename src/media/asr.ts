@@ -13,6 +13,9 @@ type AsrPipe = Awaited<ReturnType<typeof pipeline>>;
 const DEFAULT_ASR_MODEL = 'Xenova/whisper-small';
 const ASR_SAMPLE_RATE = 16_000;
 
+/**
+ * Local ASR provider backed by Transformers.js Whisper models.
+ */
 export class TransformersAsr {
   static cachedModel: string | null = null;
   static pipe: Promise<AsrPipe> | null = null;
@@ -80,6 +83,9 @@ export class TransformersAsr {
     return TransformersAsr.pipe;
   }
 
+  /**
+   * Normalize model aliases into canonical provider/model ids.
+   */
   normalizeModel(model: string): string {
     const raw = String(model || '').trim();
     if (!raw) {

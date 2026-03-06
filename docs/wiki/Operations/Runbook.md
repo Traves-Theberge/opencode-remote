@@ -12,11 +12,11 @@ Provide day-2 operator actions for runtime health and incident response.
 
 ## Diagram(s)
 
-- `docs/architecture/13-deployment-runtime.md`
+- `docs/ARCHITECTURE.md`
 
 ## Key invariants
 
-- Use CLI/TUI for operational visibility before direct DB intervention.
+- Use CLI for operational visibility before direct DB intervention.
 - Preserve database files during incident triage.
 
 ## Failure modes

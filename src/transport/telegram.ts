@@ -4,6 +4,9 @@ import path from 'node:path';
 import { logger } from '../core/logger.js';
 import { config } from '../core/config.js';
 
+/**
+ * Local media descriptor extracted from Telegram updates.
+ */
 interface TelegramMediaPayload {
   kind: 'voice' | 'audio' | 'image';
   mimeType: string;
@@ -12,6 +15,9 @@ interface TelegramMediaPayload {
   caption?: string;
 }
 
+/**
+ * Normalized Telegram inbound event passed to app handler.
+ */
 interface TelegramInboundEvent {
   channel: 'telegram';
   from: string;
@@ -25,6 +31,9 @@ interface TelegramInboundEvent {
   media?: TelegramMediaPayload;
 }
 
+/**
+ * Telegram update payload written to dead-letter flow.
+ */
 interface TelegramDeadLetter {
   channel: 'telegram';
   messageId: string;
@@ -35,6 +44,9 @@ interface TelegramDeadLetter {
   payload: unknown;
 }
 
+/**
+ * Subset of Telegram Bot API update shape used by transport.
+ */
 type TelegramUpdate = {
   update_id?: number;
   message?: {
@@ -97,6 +109,9 @@ const DEFAULT_KEYBOARD = {
   ],
 };
 
+/**
+ * Telegram transport supporting webhook and polling delivery modes.
+ */
 export class TelegramTransport {
   onMessage: (event: TelegramInboundEvent) => Promise<string | null>;
   onDeadLetter: ((event: TelegramDeadLetter) => Promise<void>) | null;
@@ -208,6 +223,9 @@ export class TelegramTransport {
     logger.info('Telegram transport started');
   }
 
+  /**
+   * Start webhook receiver and register webhook with Telegram API.
+   */
   async startWebhook() {
     const webhookUrl = String(config.get('telegram.webhookUrl') || '');
     if (!webhookUrl) {
@@ -276,6 +294,9 @@ export class TelegramTransport {
     logger.info({ webhookUrl, host, port, path }, 'Telegram webhook server started');
   }
 
+  /**
+   * Start long-polling loop.
+   */
   startPolling() {
     if (this.pollLoopTask) {
       return;
@@ -312,6 +333,9 @@ export class TelegramTransport {
     });
   }
 
+  /**
+   * Prepare polling by clearing webhook and attempting close.
+   */
   async preparePollingSession() {
     logger.info('Preparing Telegram polling session state');
     await this.api('deleteWebhook', { drop_pending_updates: false }).catch((error) => {
@@ -399,6 +423,9 @@ export class TelegramTransport {
     }
   }
 
+  /**
+   * Process update with retry and dead-letter fallback.
+   */
   async processUpdateWithRetry(update: TelegramUpdate) {
     const maxRetries = Number(config.get('telegram.messageMaxRetries')) || 3;
     const retryDelayMs = Number(config.get('telegram.messageRetryDelayMs')) || 1500;
@@ -429,6 +456,9 @@ export class TelegramTransport {
     }
   }
 
+  /**
+   * Route update to message or callback handlers.
+   */
   async processUpdate(update: TelegramUpdate) {
     if (update?.message) {
       await this.handleMessageUpdate(update.message, update?.update_id);
@@ -440,6 +470,9 @@ export class TelegramTransport {
     }
   }
 
+  /**
+   * Handle Telegram message updates and forward normalized event.
+   */
   async handleMessageUpdate(message: NonNullable<TelegramUpdate['message']>, updateId?: number) {
     if (!this.isAllowedChatType(message?.chat?.type)) {
       logger.info({ chatType: message?.chat?.type }, 'Ignoring Telegram group message by policy');
@@ -476,6 +509,9 @@ export class TelegramTransport {
     }
   }
 
+  /**
+   * Handle Telegram callback query updates.
+   */
   async handleCallbackUpdate(
     callback: NonNullable<TelegramUpdate['callback_query']>,
     updateId?: number,
@@ -518,6 +554,9 @@ export class TelegramTransport {
     }
   }
 
+  /**
+   * Answer callback query while ignoring known stale-query failures.
+   */
   async answerCallbackSafe(
     callbackId: string,
     options: { text?: string; show_alert?: boolean } = {},
@@ -561,6 +600,9 @@ export class TelegramTransport {
     return text;
   }
 
+  /**
+   * Map common plain-text shortcuts to slash commands.
+   */
   plainTextToCommand(text: string): string | null {
     const normalized = text.trim().toLowerCase();
     const map: Record<string, string> = {
@@ -577,6 +619,9 @@ export class TelegramTransport {
     return map[normalized] || null;
   }
 
+  /**
+   * Map callback payload values to slash commands.
+   */
   callbackToCommand(data: string): string | null {
     const mapped: Record<string, string> = {
       'oc:status': '/status',
@@ -600,6 +645,9 @@ export class TelegramTransport {
     return null;
   }
 
+  /**
+   * Send rendered output to Telegram with chunking and retries.
+   */
   async send(to: string, text: string) {
     if (!this.running) {
       return;
@@ -665,6 +713,9 @@ export class TelegramTransport {
     }
   }
 
+  /**
+   * Limit outbound chunk count and inject truncation notice when needed.
+   */
   limitDeliveryChunks(chunks: string[], maxChunks: number): string[] {
     if (chunks.length <= maxChunks) {
       return chunks;
@@ -687,6 +738,9 @@ export class TelegramTransport {
     return [...chunks.slice(0, headCount), notice, tail];
   }
 
+  /**
+   * Split long text into Telegram-safe message chunks.
+   */
   chunkMessage(text: string, maxLength: number): string[] {
     const chunks: string[] = [];
     const lines = text.split('\n');
@@ -742,6 +796,9 @@ export class TelegramTransport {
     return chunks.filter(Boolean);
   }
 
+  /**
+   * Render text into Telegram MarkdownV2-safe output.
+   */
   renderMarkdownV2(text: string): string {
     const codeBlocks: Array<{ lang: string; body: string }> = [];
     const withBlockPlaceholders = String(text || '').replace(
@@ -826,11 +883,17 @@ export class TelegramTransport {
       .join('\n');
   }
 
+  /**
+   * Parse markdown heading text from a single line.
+   */
   parseHeading(line: string): string {
     const match = /^#{1,6}\s+(.+)$/.exec(String(line || '').trim());
     return match ? String(match[1] || '') : '';
   }
 
+  /**
+   * Determine whether a plain line should be emphasized in output.
+   */
   shouldBoldLine(line: string): boolean {
     const trimmed = String(line || '').trim();
     if (!trimmed) {
@@ -844,14 +907,23 @@ export class TelegramTransport {
     return ['Next', 'Try', 'Reply with', 'Recent run IDs'].includes(trimmed);
   }
 
+  /**
+   * Escape MarkdownV2 control characters in regular text.
+   */
   escapeMarkdownV2Text(text: string): string {
     return String(text || '').replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
   }
 
+  /**
+   * Escape MarkdownV2 control characters inside code spans/blocks.
+   */
   escapeMarkdownV2Code(text: string): string {
     return String(text || '').replace(/([`\\])/g, '\\$1');
   }
 
+  /**
+   * Emit dead-letter payload for unrecoverable update processing failure.
+   */
   async moveToDeadLetter(update: TelegramUpdate, error: unknown, attempts: number) {
     const sender =
       String(update?.message?.from?.id || update?.callback_query?.from?.id || '') || null;
@@ -877,6 +949,9 @@ export class TelegramTransport {
     }
   }
 
+  /**
+   * Call Telegram Bot API method and validate success envelope.
+   */
   async api(method: string, body: Record<string, unknown>) {
     const token = config.get('telegram.botToken');
     const url = `https://api.telegram.org/bot${token}/${method}`;
@@ -902,6 +977,9 @@ export class TelegramTransport {
     return data;
   }
 
+  /**
+   * Extract downloadable media payload from inbound Telegram message.
+   */
   async extractMediaPayload(
     message: NonNullable<TelegramUpdate['message']>,
     updateId?: number,
@@ -955,6 +1033,9 @@ export class TelegramTransport {
     return null;
   }
 
+  /**
+   * Select largest photo variant from Telegram photo array.
+   */
   pickLargestPhoto(
     photos: Array<{ file_id?: string; width?: number; height?: number; file_size?: number }>,
   ): { file_id?: string; width?: number; height?: number; file_size?: number } | null {
@@ -965,6 +1046,9 @@ export class TelegramTransport {
     return sorted[0] || null;
   }
 
+  /**
+   * Map mime type to file extension.
+   */
   extensionForMime(mimeType: string, fallback: string): string {
     const normalized = String(mimeType || '').toLowerCase();
     const map: Record<string, string> = {
@@ -979,6 +1063,9 @@ export class TelegramTransport {
     return map[normalized] || fallback;
   }
 
+  /**
+   * Download Telegram file to local media temp directory.
+   */
   async downloadTelegramFileToTemp(fileId: string, extension: string, updateId?: number): Promise<string> {
     // Download through Telegram file API and persist into configured temp path.
     const fileInfo = (await this.api('getFile', { file_id: fileId })) as { result?: { file_path?: string } };
@@ -1008,11 +1095,17 @@ export class TelegramTransport {
     return output;
   }
 
+  /**
+   * Identify polling conflict errors from Telegram API responses.
+   */
   isPollingConflict(error: unknown): boolean {
     const text = String(error instanceof Error ? error.message : error).toLowerCase();
     return text.includes('getupdates failed (409)') || text.includes('terminated by other getupdates request');
   }
 
+  /**
+   * Record polling conflict state and trigger recovery flow when needed.
+   */
   handlePollingConflict(error: unknown) {
     this.pollingConflictCount += 1;
     this.lastPollingConflictAt = Date.now();
@@ -1043,6 +1136,9 @@ export class TelegramTransport {
     }
   }
 
+  /**
+   * Attempt polling recovery by close/deleteWebhook sequence.
+   */
   async attemptPollingRecovery() {
     const now = Date.now();
     if (this.pollingRecoveryInFlight) {
@@ -1098,12 +1194,18 @@ export class TelegramTransport {
     }
   }
 
+  /**
+   * Parse Telegram retry-after hint from error text.
+   */
   extractRetryAfterSeconds(error: unknown): number {
     const message = String(error instanceof Error ? error.message : error);
     const match = /"retry_after"\s*:\s*(\d+)/i.exec(message);
     return match ? Number(match[1]) : 0;
   }
 
+  /**
+   * Determine whether send error is transient and retryable.
+   */
   isTransientNetworkError(error: unknown): boolean {
     if (!(error instanceof Error)) {
       return false;
@@ -1143,10 +1245,16 @@ export class TelegramTransport {
     };
   }
 
+  /**
+   * Sleep helper used by retry and polling loops.
+   */
   sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Enforce configured chat-type policy for inbound messages.
+   */
   isAllowedChatType(chatType: string | undefined): boolean {
     const allowGroupChats = Boolean(config.get('telegram.allowGroupChats'));
     if (allowGroupChats) {
@@ -1156,6 +1264,9 @@ export class TelegramTransport {
     return chatType === 'private';
   }
 
+  /**
+   * Stop Telegram transport polling/webhook resources.
+   */
   async stop() {
     this.running = false;
     this.pollingInFlight = false;

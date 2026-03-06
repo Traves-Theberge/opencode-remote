@@ -11,8 +11,8 @@ Document Telegram transport modes, callback normalization, and policy behavior.
 
 ## Diagram(s)
 
-- `docs/architecture/05-sequence-telegram-callback.md`
-- `docs/architecture/13-deployment-runtime.md`
+- `docs/ARCHITECTURE.md`
+- `docs/wiki/End-to-End-Guide.md`
 
 ## Key invariants
 

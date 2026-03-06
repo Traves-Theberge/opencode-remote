@@ -1,15 +1,6 @@
 import Conf from 'conf';
 
 const defaults = {
-  whatsapp: {
-    enabled: true,
-    sessionPath: './.wwebjs_auth',
-    qrTimeout: 120000,
-    reconnectDelay: 5000,
-    maxReconnectAttempts: 5,
-    messageMaxRetries: 3,
-    messageRetryDelayMs: 1500,
-  },
   telegram: {
     enabled: true,
     botToken: '',
@@ -80,6 +71,9 @@ const defaults = {
   },
 };
 
+/**
+ * Convert dotted config key to uppercase env var key.
+ */
 function keyToEnvKey(key: string): string {
   return key
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
@@ -87,6 +81,9 @@ function keyToEnvKey(key: string): string {
     .toUpperCase();
 }
 
+/**
+ * Parse common boolean env representations.
+ */
 function parseBooleanEnv(raw: string): boolean | null {
   const value = raw.trim().toLowerCase();
   if (['1', 'true', 'yes', 'on'].includes(value)) {
@@ -98,6 +95,9 @@ function parseBooleanEnv(raw: string): boolean | null {
   return null;
 }
 
+/**
+ * Runtime configuration facade with persisted and env-override values.
+ */
 class Config {
   private store: Conf<Record<string, unknown>>;
 
@@ -108,6 +108,9 @@ class Config {
     }) as unknown as Conf<Record<string, unknown>>;
   }
 
+  /**
+   * Read effective config value with env override precedence.
+   */
   get(key: string): unknown {
     const envOverride = this.getEnvOverride(key);
     if (envOverride !== undefined) {
@@ -116,22 +119,37 @@ class Config {
     return this.store.get(key);
   }
 
+  /**
+   * Read persisted value without env override.
+   */
   getPersisted(key: string): unknown {
     return this.store.get(key);
   }
 
+  /**
+   * Persist config value.
+   */
   set(key: string, value: unknown): void {
     this.store.set(key, value);
   }
 
+  /**
+   * Delete persisted config key.
+   */
   delete(key: string): void {
     this.store.delete(key);
   }
 
+  /**
+   * Check whether a config key is overridden via process env.
+   */
   hasEnvOverride(key: string): boolean {
     return process.env[keyToEnvKey(key)] !== undefined;
   }
 
+  /**
+   * Return normalized unique allowlist including owner.
+   */
   getAllowedNumbers() {
     const owner = this.normalizePhone(this.get('security.ownerNumber'));
     const allowed = ((this.get('security.allowedNumbers') as string[] | undefined) || []).map((number) =>
@@ -142,6 +160,9 @@ class Config {
     return Array.from(all);
   }
 
+  /**
+   * Normalize phone-like input into E.164-style value.
+   */
   normalizePhone(number: unknown): string {
     if (!number || typeof number !== 'string') {
       return '';
@@ -149,7 +170,6 @@ class Config {
 
     const stripped = number
       .replace(/@c\.us$/i, '')
-      .replace(/^whatsapp:/i, '')
       .replace(/[^\d+]/g, '');
 
     if (stripped.startsWith('+')) {
@@ -159,11 +179,17 @@ class Config {
     return stripped ? `+${stripped}` : '';
   }
 
+  /**
+   * Validate normalized phone against E.164 constraints.
+   */
   isValidPhone(number: unknown): boolean {
     const normalized = this.normalizePhone(number);
     return /^\+[1-9]\d{7,14}$/.test(normalized);
   }
 
+  /**
+   * Add number to persisted allowlist if not present.
+   */
   addAllowedNumber(number: unknown): void {
     const normalized = this.normalizePhone(number);
     const allowed = ((this.get('security.allowedNumbers') as string[] | undefined) || []).map((entry) =>
@@ -176,6 +202,9 @@ class Config {
     }
   }
 
+  /**
+   * Remove number from persisted allowlist.
+   */
   removeAllowedNumber(number: unknown): void {
     const normalized = this.normalizePhone(number);
     const allowed = ((this.get('security.allowedNumbers') as string[] | undefined) || []).map((entry) =>
@@ -185,10 +214,16 @@ class Config {
     this.set('security.allowedNumbers', filtered);
   }
 
+  /**
+   * Check whether number is currently allowlisted.
+   */
   isAllowed(number: unknown): boolean {
     return this.getAllowedNumbers().includes(this.normalizePhone(number));
   }
 
+  /**
+   * Check whether number matches configured owner.
+   */
   isOwner(number: unknown): boolean {
     return (
       this.normalizePhone(this.get('security.ownerNumber')) ===

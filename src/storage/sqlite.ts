@@ -3,6 +3,9 @@ import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { redactString, redactUnknown } from '../security/redaction.js';
 
+/**
+ * Input shape for dead-letter persistence.
+ */
 interface DeadLetterRecord {
   channel: string;
   messageId: string | null;
@@ -13,6 +16,9 @@ interface DeadLetterRecord {
   payload: unknown;
 }
 
+/**
+ * Composite dedupe record stored for inbound idempotency.
+ */
 interface MessageDedupRecord {
   dedupKey: string;
   channel: string;
@@ -20,12 +26,18 @@ interface MessageDedupRecord {
   transportMessageId: string;
 }
 
+/**
+ * Applied schema migration row.
+ */
 interface SchemaMigrationRow {
   version: number;
   name: string;
   applied_at: number;
 }
 
+/**
+ * Session-binding row keyed by phone number.
+ */
 interface BindingRow {
   phone: string;
   active_session_id: string | null;
@@ -35,12 +47,18 @@ interface BindingRow {
   updated_at: number;
 }
 
+/**
+ * Active Telegram identity mapping row.
+ */
 interface TelegramBindingRow {
   phone: string;
   telegram_user_id: string;
   telegram_username: string | null;
 }
 
+/**
+ * Persisted command run row.
+ */
 interface RunRow {
   run_id: string;
   phone: string;
@@ -51,6 +69,9 @@ interface RunRow {
   created_at: number;
 }
 
+/**
+ * Distributed transport lease row.
+ */
 interface TransportLeaseRow {
   name: string;
   owner_id: string;
@@ -58,6 +79,9 @@ interface TransportLeaseRow {
   updated_at: number;
 }
 
+/**
+ * SQLite-backed persistence layer for control-plane state.
+ */
 export class LocalStore {
   dbPath: string;
   db!: Database.Database;
@@ -80,6 +104,9 @@ export class LocalStore {
     this.runMigrations();
   }
 
+  /**
+   * Ensure migration metadata table exists.
+   */
   ensureMigrationTable() {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -90,6 +117,9 @@ export class LocalStore {
     `);
   }
 
+  /**
+   * Apply pending schema migrations in version order.
+   */
   runMigrations() {
     const migrations = [
       {
@@ -204,8 +234,8 @@ export class LocalStore {
 
           INSERT OR IGNORE INTO messages_v2 (dedup_key, channel, sender, transport_message_id, created_at)
           SELECT
-            ('whatsapp:' || COALESCE(phone, 'unknown') || ':' || message_id) AS dedup_key,
-            'whatsapp' AS channel,
+            ('legacy:' || COALESCE(phone, 'unknown') || ':' || message_id) AS dedup_key,
+            'legacy' AS channel,
             COALESCE(phone, 'unknown') AS sender,
             message_id AS transport_message_id,
             created_at
@@ -256,6 +286,9 @@ export class LocalStore {
     }
   }
 
+  /**
+   * Ensure owner user exists and is active.
+   */
   ensureOwner(phone: string): void {
     if (!phone) {
       return;
@@ -263,10 +296,16 @@ export class LocalStore {
     this.addOrActivateUser(phone, 'owner');
   }
 
+  /**
+   * Normalize role value to supported enum.
+   */
   normalizeRole(role: string): 'owner' | 'user' {
     return role === 'owner' ? 'owner' : 'user';
   }
 
+  /**
+   * Upsert active user with requested role.
+   */
   addOrActivateUser(phone: string, role = 'user'): void {
     const now = Date.now();
     const safeRole = this.normalizeRole(role);
@@ -281,6 +320,9 @@ export class LocalStore {
     stmt.run({ phone, role: safeRole, now });
   }
 
+  /**
+   * Deactivate user while preserving history.
+   */
   deactivateUser(phone: string): void {
     const now = Date.now();
     this.db
@@ -288,6 +330,9 @@ export class LocalStore {
       .run(now, phone);
   }
 
+  /**
+   * Check whether user is active in allowlist.
+   */
   isAllowed(phone: string): boolean {
     const row = this.db
       .prepare('SELECT 1 FROM users WHERE phone = ? AND active = 1')
@@ -295,6 +340,9 @@ export class LocalStore {
     return Boolean(row);
   }
 
+  /**
+   * Check whether user is active owner.
+   */
   isOwner(phone: string): boolean {
     const row = this.db
       .prepare('SELECT 1 FROM users WHERE phone = ? AND active = 1 AND role = ?')
@@ -302,6 +350,9 @@ export class LocalStore {
     return Boolean(row);
   }
 
+  /**
+   * List active users ordered by role then phone.
+   */
   listAllowedNumbers(): string[] {
     const rows = this.db
       .prepare('SELECT phone FROM users WHERE active = 1 ORDER BY role DESC, phone ASC')
@@ -309,6 +360,9 @@ export class LocalStore {
     return rows.map((row) => row.phone);
   }
 
+  /**
+   * Bind Telegram identity metadata to an existing user.
+   */
   setTelegramIdentity(phone: string, { userId, username }: { userId: string; username: string | null }): void {
     const telegramUserId = String(userId || '').trim();
     if (!telegramUserId) {
@@ -328,6 +382,9 @@ export class LocalStore {
       .run(telegramUserId, username || null, Date.now(), phone);
   }
 
+  /**
+   * Clear Telegram identity by Telegram user id.
+   */
   clearTelegramIdentityByUserId(userId: string): void {
     const telegramUserId = String(userId || '').trim();
     if (!telegramUserId) {
@@ -347,6 +404,9 @@ export class LocalStore {
       .run(Date.now(), telegramUserId);
   }
 
+  /**
+   * Resolve active phone by bound Telegram user id.
+   */
   getPhoneByTelegramUserId(userId: string): string | null {
     const telegramUserId = String(userId || '').trim();
     if (!telegramUserId) {
@@ -360,6 +420,9 @@ export class LocalStore {
     return row?.phone || null;
   }
 
+  /**
+   * List active Telegram bindings.
+   */
   listTelegramBindings(): TelegramBindingRow[] {
     return this.db
       .prepare(
@@ -373,10 +436,16 @@ export class LocalStore {
         .all() as TelegramBindingRow[];
   }
 
+  /**
+   * Read binding row for phone.
+   */
   getBinding(phone: string): BindingRow | null {
     return (this.db.prepare('SELECT * FROM bindings WHERE phone = ?').get(phone) as BindingRow | undefined) || null;
   }
 
+  /**
+   * Upsert per-user binding state.
+   */
   upsertBinding(
     phone: string,
     patch: { activeSessionId?: string | null; cwd?: string | null; workspaceRoot?: string | null; telegramChatId?: string | null },
@@ -425,6 +494,9 @@ export class LocalStore {
     }
   }
 
+  /**
+   * Lookup binding row by active OpenCode session id.
+   */
   findBindingBySessionId(sessionId: string): BindingRow | null {
     if (!sessionId) {
       return null;
@@ -435,6 +507,9 @@ export class LocalStore {
     return row || null;
   }
 
+  /**
+   * Store one-time confirmation token.
+   */
   createConfirmation({ id, phone, action, expiresAt }: { id: string; phone: string; action: unknown; expiresAt: number }): void {
     const now = Date.now();
     this.db
@@ -444,6 +519,9 @@ export class LocalStore {
       .run(id, phone, JSON.stringify(action), expiresAt, now);
   }
 
+  /**
+   * Fetch confirmation token with parsed action payload.
+   */
   getConfirmation(id: string) {
     const row = this.db.prepare('SELECT * FROM confirmations WHERE id = ?').get(id) as
       | { id: string; phone: string; action_json: string; expires_at: number; created_at: number }
@@ -460,14 +538,23 @@ export class LocalStore {
     };
   }
 
+  /**
+   * Delete confirmation token.
+   */
   deleteConfirmation(id: string): void {
     this.db.prepare('DELETE FROM confirmations WHERE id = ?').run(id);
   }
 
+  /**
+   * Delete expired confirmation tokens.
+   */
   cleanupConfirmations(now = Date.now()): void {
     this.db.prepare('DELETE FROM confirmations WHERE expires_at < ?').run(now);
   }
 
+  /**
+   * Persist command execution output for retrieval.
+   */
   saveRun({
     runId,
     phone,
@@ -491,6 +578,9 @@ export class LocalStore {
       .run(runId, phone, sessionId || null, commandType, display, raw, now);
   }
 
+  /**
+   * Fetch stored run by id scoped to user.
+   */
   getRun(runId: string, phone: string): RunRow | null {
     const row = this.db
       .prepare('SELECT * FROM runs WHERE run_id = ? AND phone = ? LIMIT 1')
@@ -498,17 +588,26 @@ export class LocalStore {
     return row || null;
   }
 
+  /**
+   * List most recent stored runs for user.
+   */
   listRuns(phone: string, limit = 10): RunRow[] {
     return this.db
       .prepare('SELECT * FROM runs WHERE phone = ? ORDER BY created_at DESC LIMIT ?')
       .all(phone, limit) as RunRow[];
   }
 
+  /**
+   * Check whether inbound dedupe key already exists.
+   */
   isMessageProcessed(dedupKey: string): boolean {
     const row = this.db.prepare('SELECT 1 FROM messages WHERE dedup_key = ?').get(dedupKey);
     return Boolean(row);
   }
 
+  /**
+   * Insert inbound dedupe key and prune old dedupe rows.
+   */
   markMessageProcessed({ dedupKey, channel, sender, transportMessageId }: MessageDedupRecord): void {
     const now = Date.now();
     this.db
@@ -531,6 +630,9 @@ export class LocalStore {
       .run(now - 5 * 60 * 1000);
   }
 
+  /**
+   * Append redacted audit event.
+   */
   appendAudit(eventType: string, payload: unknown): void {
     const redactedPayload = redactUnknown(payload);
     this.db
@@ -538,6 +640,9 @@ export class LocalStore {
       .run(eventType, JSON.stringify(redactedPayload || {}), Date.now());
   }
 
+  /**
+   * Append redacted dead-letter transport record.
+   */
   appendDeadLetter({ channel, messageId, sender, body, error, attempts, payload }: DeadLetterRecord): void {
     const redactedBody = body ? redactString(body) : null;
     const redactedError = redactString(error);
@@ -569,10 +674,16 @@ export class LocalStore {
       );
   }
 
+  /**
+   * Return applied schema migration history.
+   */
   getSchemaMigrations(): SchemaMigrationRow[] {
     return this.db.prepare('SELECT * FROM schema_migrations ORDER BY version ASC').all() as SchemaMigrationRow[];
   }
 
+  /**
+   * Read last processed event offset for stream.
+   */
   getEventOffset(stream: string): { stream: string; last_event_id: string | null; updated_at: number } | null {
     return (
       this.db.prepare('SELECT * FROM event_offsets WHERE stream = ?').get(stream) as
@@ -581,6 +692,9 @@ export class LocalStore {
     ) || null;
   }
 
+  /**
+   * Upsert last processed event offset for stream.
+   */
   setEventOffset(stream: string, lastEventId: string | null): void {
     this.db
       .prepare(
@@ -621,16 +735,25 @@ export class LocalStore {
     return result.changes > 0;
   }
 
+  /**
+   * Renew transport lease for the same owner.
+   */
   renewTransportLease(name: string, ownerId: string, ttlMs = 60_000): boolean {
     return this.acquireTransportLease(name, ownerId, ttlMs);
   }
 
+  /**
+   * Release transport lease if owned by owner id.
+   */
   releaseTransportLease(name: string, ownerId: string): void {
     this.db
       .prepare('DELETE FROM transport_leases WHERE name = ? AND owner_id = ?')
       .run(name, ownerId);
   }
 
+  /**
+   * Read active transport lease by name.
+   */
   getTransportLease(name: string): TransportLeaseRow | null {
     return (
       this.db.prepare('SELECT * FROM transport_leases WHERE name = ?').get(name) as
@@ -639,6 +762,9 @@ export class LocalStore {
     ) || null;
   }
 
+  /**
+   * Close underlying SQLite connection.
+   */
   close(): void {
     this.db.close();
   }

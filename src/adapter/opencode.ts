@@ -5,6 +5,9 @@ import { readFileSync } from 'node:fs';
 
 type OpencodeClient = ReturnType<typeof createOpencodeClient>;
 
+/**
+ * Per-request adapter execution context.
+ */
 interface AdapterContext {
   sessionId?: string | null;
   directory?: string | null;
@@ -13,6 +16,9 @@ interface AdapterContext {
   modelOverride?: { providerID: string; modelID: string };
 }
 
+/**
+ * File attachment descriptor for prompt requests.
+ */
 interface PromptFileAttachment {
   filePath: string;
   mimeType: string;
@@ -73,7 +79,7 @@ export class OpenCodeAdapter {
   }
 
   /** Create a new OpenCode session and set adapter current session pointer. */
-  async createSession(title = 'WhatsApp Remote Session', context: AdapterContext = {}) {
+  async createSession(title = 'OpenCode Remote Session', context: AdapterContext = {}) {
     try {
       const result = await this.client.session.create({
         body: { title },
@@ -102,7 +108,7 @@ export class OpenCodeAdapter {
     const sessionId = this.resolveSessionId(options);
     
     if (!sessionId) {
-      const session = await this.createSession('WhatsApp Remote Session', options);
+      const session = await this.createSession('OpenCode Remote Session', options);
       return this.sendPrompt(text, { ...options, sessionId: session.id });
     }
 
@@ -134,7 +140,7 @@ export class OpenCodeAdapter {
         // runtime. Retry once in a fresh session with a request-local fallback so
         // we recover the reply without mutating global model configuration.
         logger.warn({ sessionId, messageId }, 'Prompt failed due unsupported model; retrying once with big-pickle override');
-        const fresh = await this.createSession('WhatsApp Remote Session', options);
+        const fresh = await this.createSession('OpenCode Remote Session', options);
         return this.sendPrompt(text, {
           ...options,
           sessionId: fresh.id,
@@ -158,6 +164,9 @@ export class OpenCodeAdapter {
     }
   }
 
+  /**
+   * Build SDK prompt part payload for text and file attachments.
+   */
   buildPromptParts(text: string, files: PromptFileAttachment[]): Array<Record<string, unknown>> {
     const parts: Array<Record<string, unknown>> = [{ type: 'text', text }];
 
@@ -177,6 +186,9 @@ export class OpenCodeAdapter {
     return parts;
   }
 
+  /**
+   * Convert local file to data URL for SDK file part payload.
+   */
   toDataUrl(filePath: string, mimeType: string): string | null {
     try {
       const bytes = readFileSync(filePath);
@@ -188,6 +200,9 @@ export class OpenCodeAdapter {
     }
   }
 
+  /**
+   * Poll message endpoint until assistant content is available or timeout elapses.
+   */
   async waitForMessageResponse(sessionId: string, messageId: string, context: AdapterContext): Promise<string> {
     const timeoutMs = Math.max(5_000, Number(config.get('opencode.promptResponseTimeoutMs')) || 90_000);
     const intervalMs = Math.max(500, Number(config.get('opencode.promptResponsePollIntervalMs')) || 1500);
@@ -234,6 +249,9 @@ export class OpenCodeAdapter {
     return '';
   }
 
+  /**
+   * Extract backend error text from message metadata.
+   */
   extractMessageErrorText(info: unknown): string | null {
     if (!info || typeof info !== 'object') {
       return null;
@@ -262,6 +280,9 @@ export class OpenCodeAdapter {
     return null;
   }
 
+  /**
+   * Decide whether to retry once with fallback model in a fresh session.
+   */
   shouldRetryWithFreshSession(info: unknown, response: string, context: AdapterContext): boolean {
     if (context.retryFreshSession === false) {
       return false;
@@ -279,6 +300,9 @@ export class OpenCodeAdapter {
     return this.isUnsupportedCodexModelError(response);
   }
 
+  /**
+   * Identify unsupported-account Codex model errors.
+   */
   isUnsupportedCodexModelError(message: string): boolean {
     const text = String(message || '').toLowerCase();
     return text.includes('model is not supported') && text.includes('chatgpt account');
@@ -338,6 +362,9 @@ export class OpenCodeAdapter {
     }
   }
 
+  /**
+   * Read file content through OpenCode file API.
+   */
   async readFile(path: string, context: AdapterContext = {}) {
     try {
       const result = await this.client.file.read({
@@ -358,6 +385,9 @@ export class OpenCodeAdapter {
     }
   }
 
+  /**
+   * List OpenCode sessions for current query context.
+   */
   async listSessions(context: AdapterContext = {}) {
     try {
       const result = await this.client.session.list({
@@ -370,6 +400,9 @@ export class OpenCodeAdapter {
     }
   }
 
+  /**
+   * Abort a specific OpenCode session.
+   */
   async abortSession(sessionId: string, context: AdapterContext = {}) {
     try {
       await this.client.session.abort({
@@ -384,6 +417,9 @@ export class OpenCodeAdapter {
     }
   }
 
+  /**
+   * Fetch session diff output.
+   */
   async getDiff(sessionId: string | null, context: AdapterContext = {}) {
     try {
       const targetSessionId = sessionId || this.resolveSessionId(context);
@@ -402,6 +438,9 @@ export class OpenCodeAdapter {
     }
   }
 
+  /**
+   * Trigger session summarization.
+   */
   async summarize(sessionId: string | null, context: AdapterContext = {}) {
     try {
       const targetSessionId = sessionId || this.resolveSessionId(context);
@@ -422,6 +461,9 @@ export class OpenCodeAdapter {
     }
   }
 
+  /**
+   * Abort currently active session in context.
+   */
   async abort(context: AdapterContext = {}) {
     const sessionId = this.resolveSessionId(context);
     if (!sessionId) {
@@ -431,6 +473,9 @@ export class OpenCodeAdapter {
     return this.abortSession(sessionId, context);
   }
 
+  /**
+   * Read current working path from OpenCode runtime.
+   */
   async getCurrentPath() {
     try {
       const result = await this.client.path.get();
@@ -442,11 +487,17 @@ export class OpenCodeAdapter {
     }
   }
 
+  /**
+   * List configured projects.
+   */
   async listProjects() {
     const result = await this.client.project.list();
     return result.data || [];
   }
 
+  /**
+   * List files for path under optional directory context.
+   */
   async listFiles(pathQuery = '.', context: AdapterContext = {}) {
     const result = await this.client.file.list({
       query: {
@@ -457,6 +508,9 @@ export class OpenCodeAdapter {
     return result.data || [];
   }
 
+  /**
+   * Search files by name/glob query.
+   */
   async findFiles(query: string, context: AdapterContext = {}) {
     const result = await this.client.find.files({
       query: {
@@ -467,6 +521,9 @@ export class OpenCodeAdapter {
     return result.data || [];
   }
 
+  /**
+   * Search file contents by pattern.
+   */
   async findText(pattern: string, context: AdapterContext = {}) {
     const result = await this.client.find.text({
       query: {
@@ -477,6 +534,9 @@ export class OpenCodeAdapter {
     return result.data || [];
   }
 
+  /**
+   * Fetch OpenCode session status by id.
+   */
   async getSessionStatus(sessionId: string | null, context: AdapterContext = {}) {
     const targetSessionId = sessionId || this.resolveSessionId(context);
     if (!targetSessionId) {
@@ -493,6 +553,9 @@ export class OpenCodeAdapter {
     return result.data || null;
   }
 
+  /**
+   * Submit permission response for a pending OpenCode permission request.
+   */
   async replyPermission(
     sessionId: string | null,
     permissionId: string,
@@ -522,15 +585,24 @@ export class OpenCodeAdapter {
     return { success: true, sessionId: targetSessionId, permissionId, response };
   }
 
+  /**
+   * Find project by id from current project list.
+   */
   async getProjectById(projectId: string) {
     const projects = await this.listProjects();
     return projects.find((project) => project.id === projectId) || null;
   }
 
+  /**
+   * Update adapter-level current session pointer.
+   */
   setCurrentSessionId(sessionId: string | null): void {
     this.currentSessionId = sessionId || null;
   }
 
+  /**
+   * Subscribe to global OpenCode SSE event stream.
+   */
   async subscribeGlobalEvents(onEvent: (event: unknown) => Promise<void>) {
     const eventApi = (this.client.global.event as unknown as {
       sse?: (options?: { signal?: AbortSignal }) => Promise<{ stream: AsyncIterable<unknown> }>;
@@ -567,6 +639,9 @@ export class OpenCodeAdapter {
     return () => controller.abort();
   }
 
+  /**
+   * Convert structured OpenCode response parts into plain text.
+   */
   formatParts(parts: Array<{ type?: string; text?: string; name?: string; input?: unknown; content?: string }>) {
     if (!parts || !Array.isArray(parts)) {
       return '';
@@ -588,6 +663,9 @@ export class OpenCodeAdapter {
       .join('\n');
   }
 
+  /**
+   * Normalize heterogeneous SDK payload shape to a display string.
+   */
   formatPayload(payload: { parts?: Array<{ type?: string; text?: string; name?: string; input?: unknown; content?: string }> } | string | unknown) {
     if (!payload) {
       return '';
@@ -607,6 +685,9 @@ export class OpenCodeAdapter {
     return JSON.stringify(payload, null, 2);
   }
 
+  /**
+   * Resolve model used for summarize endpoint calls.
+   */
   async getSummaryModel() {
     try {
       const providers = await this.client.config.providers();
@@ -628,6 +709,9 @@ export class OpenCodeAdapter {
     };
   }
 
+  /**
+   * Return combined model config and provider status.
+   */
   async getModelStatus() {
     const cfg = await this.client.config.get();
     const providers = await this.client.config.providers();
@@ -637,11 +721,17 @@ export class OpenCodeAdapter {
     };
   }
 
+  /**
+   * List model providers from OpenCode.
+   */
   async listProviders() {
     const result = await this.client.provider.list();
     return result?.data || [];
   }
 
+  /**
+   * Update active provider/model in OpenCode config.
+   */
   async setModel(providerId: string, modelId: string) {
     if (!providerId || !modelId) {
       throw new Error('Missing providerId or modelId');
@@ -663,11 +753,17 @@ export class OpenCodeAdapter {
     return result?.data || null;
   }
 
+  /**
+   * List available tool ids.
+   */
   async listToolIds() {
     const result = await this.client.tool.ids();
     return result?.data || [];
   }
 
+  /**
+   * List tools for provider/model pair.
+   */
   async listTools(providerId: string, modelId: string) {
     const resolved = providerId && modelId ? { providerID: providerId, modelID: modelId } : await this.getSummaryModel();
     const result = await this.client.tool.list({
@@ -679,11 +775,17 @@ export class OpenCodeAdapter {
     return result?.data || [];
   }
 
+  /**
+   * Fetch MCP server connection status.
+   */
   async getMcpStatus() {
     const result = await this.client.mcp.status();
     return result?.data || [];
   }
 
+  /**
+   * Add MCP server entry.
+   */
   async addMcpServer(name: string, command: string) {
     if (!name || !command) {
       throw new Error('Missing MCP name or command');
@@ -697,6 +799,9 @@ export class OpenCodeAdapter {
     return result?.data || null;
   }
 
+  /**
+   * Connect named MCP server.
+   */
   async connectMcp(server: string) {
     if (!server) {
       throw new Error('Missing MCP server id/name');
@@ -709,6 +814,9 @@ export class OpenCodeAdapter {
     return result?.data || null;
   }
 
+  /**
+   * Disconnect named MCP server.
+   */
   async disconnectMcp(server: string) {
     if (!server) {
       throw new Error('Missing MCP server id/name');
@@ -721,16 +829,25 @@ export class OpenCodeAdapter {
     return result?.data || null;
   }
 
+  /**
+   * List registered skills/agents from OpenCode app API.
+   */
   async listSkills() {
     const result = await this.client.app.agents();
     return result?.data || [];
   }
 
+  /**
+   * List supported command metadata from OpenCode.
+   */
   async listCommands() {
     const result = await this.client.command.list();
     return result?.data || [];
   }
 
+  /**
+   * Collect runtime diagnostics from path/lsp/formatter/vcs endpoints.
+   */
   async getDiagnostics() {
     const [pathInfo, lsp, formatter, vcs] = await Promise.all([
       this.client.path.get().catch(() => null),
@@ -747,10 +864,16 @@ export class OpenCodeAdapter {
     };
   }
 
+  /**
+   * Return adapter-level current session id.
+   */
   getCurrentSessionId() {
     return this.currentSessionId;
   }
 
+  /**
+   * Stop event subscriptions and release adapter resources.
+   */
   async stop() {
     if (this.eventAbortController) {
       this.eventAbortController.abort();

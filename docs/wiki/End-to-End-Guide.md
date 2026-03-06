@@ -6,7 +6,7 @@ This is the deepwiki-style entrypoint for understanding, operating, and extendin
 
 ```mermaid
 flowchart LR
-  U[Telegram/WhatsApp User] --> T[Transport Layer]
+  U[Telegram User] --> T[Transport Layer]
   T --> A[App Orchestrator]
   A --> R[Router + Safety]
   R --> E[Executor]
@@ -21,7 +21,7 @@ Primary code surfaces:
 - App runtime: `src/index.ts`
 - Router/safety/execution: `src/router/index.ts`, `src/safety/engine.ts`, `src/commands/executor.ts`
 - OpenCode boundary: `src/adapter/opencode.ts`
-- Transports: `src/transport/telegram.ts`, `src/transport/whatsapp.ts`
+- Transport: `src/transport/telegram.ts`
 - State/persistence: `src/storage/sqlite.ts`, `src/access/controller.ts`
 
 ## 2) End-to-End Request Flow
@@ -36,12 +36,10 @@ Primary code surfaces:
 8. Formatter + transport send response back to origin channel.
 9. Runs/audit/dead-letter state is persisted to SQLite.
 
-Deep sequence docs:
+Deep behavior docs:
 
-- `docs/architecture/04-sequence-whatsapp-inbound.md`
-- `docs/architecture/05-sequence-telegram-callback.md`
-- `docs/architecture/06-sequence-dangerous-confirmation.md`
-- `docs/architecture/07-sequence-permission-updated-fanout.md`
+- `docs/wiki/Integrations/Telegram.md`
+- `docs/wiki/Security/Safety-Engine-and-Confirmations.md`
 
 ## 3) Operations Guide Path
 
@@ -64,8 +62,6 @@ Key runtime commands:
 
 - `docs/wiki/Security/Access-Control-and-Policy.md`
 - `docs/wiki/Security/Safety-Engine-and-Confirmations.md`
-- `docs/SECURITY_REVIEW.md`
-- `docs/SYSTEM_AUDIT_2026-03-05.md`
 
 Security defaults to understand first:
 
@@ -87,29 +83,20 @@ Related docs:
 - `docs/COMMAND_MODEL.md`
 - `README.md`
 
-## 6) Architecture + Diagram Index
+## 6) Architecture Index
 
-System and deployment:
-
-- `docs/architecture/01-system-context.md`
-- `docs/architecture/02-containers.md`
-- `docs/architecture/03-components.md`
-- `docs/architecture/13-deployment-runtime.md`
-
-State and reliability:
-
-- `docs/architecture/08-state-message-lifecycle.md`
-- `docs/architecture/09-state-session-lifecycle.md`
-- `docs/architecture/10-state-confirmation-lifecycle.md`
-- `docs/architecture/11-state-transport-retry-deadletter.md`
-- `docs/architecture/12-data-flow-persistence.md`
+- `docs/ARCHITECTURE.md`
+- `docs/COMMAND_MODEL.md`
+- `docs/DATA_MODELS.md`
+- `docs/DATABASE_SCHEMA.md`
+- `docs/ERD.md`
 
 ## 7) Contributor Guide Path
 
 Suggested order for contributors:
 
 1. `docs/wiki/Development/Monorepo-Structure.md`
-2. `docs/wiki/Architecture/Request-Lifecycle.md`
+2. `docs/ARCHITECTURE.md`
 3. `docs/wiki/Development/Testing-Strategy.md`
 4. `docs/wiki/Development/Quality-Gates.md`
 5. `docs/COMMAND_MODEL.md`
@@ -127,7 +114,7 @@ For behavior-changing work:
 
 - update code + tests
 - update command/ops/wiki docs
-- update architecture diagrams when flows change
+- update architecture and workflow wiki pages when flows change
 - add changelog note under `Unreleased`
 - pass `npm run verify`
 

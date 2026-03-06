@@ -68,11 +68,11 @@ test('persists and returns runs by phone', () => {
 test('deduplicates message ids', () => {
   const { store, cleanup } = withStore();
   try {
-    const dedupKey = 'whatsapp:+15550001111:msg-1';
+    const dedupKey = 'telegram:+15550001111:msg-1';
     assert.equal(store.isMessageProcessed(dedupKey), false);
     store.markMessageProcessed({
       dedupKey,
-      channel: 'whatsapp',
+      channel: 'telegram',
       sender: '+15550001111',
       transportMessageId: 'msg-1',
     });
@@ -110,7 +110,7 @@ test('stores dead-letter events', () => {
   const { store, cleanup } = withStore();
   try {
     store.appendDeadLetter({
-      channel: 'whatsapp',
+      channel: 'telegram',
       messageId: 'msg-123',
       sender: '+15550001111',
       body: '/status',
@@ -126,7 +126,7 @@ test('stores dead-letter events', () => {
       | undefined;
 
     assert.ok(row);
-    assert.equal(row.channel, 'whatsapp');
+    assert.equal(row.channel, 'telegram');
     assert.equal(row.attempts, 3);
     assert.equal(row.sender, '+15550001111');
   } finally {

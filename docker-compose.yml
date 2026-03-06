@@ -23,13 +23,11 @@ services:
       ASR_ENABLED: ${ASR_ENABLED:-true}
       ASR_MODEL: ${ASR_MODEL:-Xenova/whisper-small}
       ASR_TIMEOUT_MS: ${ASR_TIMEOUT_MS:-180000}
-      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
       OPENCODE_REMOTE_BUILD_ID: ${OPENCODE_REMOTE_BUILD_ID:-local}
       XDG_CONFIG_HOME: /app/config
     volumes:
       - ./data:/app/data
       - ./config:/app/config
-      - ./.wwebjs_auth:/app/.wwebjs_auth
     extra_hosts:
       - host.docker.internal:host-gateway
     # For Telegram webhook mode, map webhook port too:

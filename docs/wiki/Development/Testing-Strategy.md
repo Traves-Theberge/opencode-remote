@@ -10,11 +10,10 @@ Summarize coverage domains and confidence layering across unit/contract/smoke te
 - `tests/executor.test.ts`
 - `tests/adapter.test.ts`
 - `tests/bridge.test.ts`
-- `tests/tui-smoke.test.ts`
 
 ## Diagram(s)
 
-- `docs/architecture/03-components.md`
+- `docs/ARCHITECTURE.md`
 
 ## Key invariants
 
@@ -25,7 +24,7 @@ Summarize coverage domains and confidence layering across unit/contract/smoke te
 ## Failure modes
 
 - non-deterministic tests from shared DB paths.
-- OpenTUI runtime assumptions changing under Bun updates.
+- workspace runtime assumptions changing under dependency updates.
 
 ## Operational checks
 
@@ -35,4 +34,4 @@ Summarize coverage domains and confidence layering across unit/contract/smoke te
 ## Related pages
 
 - `docs/wiki/Development/Quality-Gates.md`
-- `docs/wiki/Architecture/Control-Plane-Namespaces.md`
+- `docs/COMMAND_MODEL.md`

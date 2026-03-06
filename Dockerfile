@@ -14,7 +14,6 @@ COPY package.json package-lock.json ./
 # across normal source edits.
 COPY apps/daemon/package.json ./apps/daemon/package.json
 COPY apps/cli/package.json ./apps/cli/package.json
-COPY apps/tui/package.json ./apps/tui/package.json
 COPY packages/bridge/package.json ./packages/bridge/package.json
 
 RUN npm ci
@@ -27,6 +26,6 @@ COPY tsconfig.json ./
 
 ENV XDG_CONFIG_HOME=/app/config
 
-RUN mkdir -p /app/data /app/config /app/.wwebjs_auth
+RUN mkdir -p /app/data /app/config
 
 CMD ["npm", "start"]

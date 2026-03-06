@@ -5,6 +5,9 @@ const TELEGRAM_TOKEN_PATTERN = /\b\d{6,12}:[A-Za-z0-9_-]{20,}\b/g;
 const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._-]{10,}\b/gi;
 const ASSIGNMENT_PATTERN = /(token|secret|password|api[_-]?key)\s*[:=]\s*([^\s,;"']{4,})/gi;
 
+/**
+ * Redact token-like and credential-like substrings from plain text.
+ */
 export function redactString(input: string): string {
   return String(input || '')
     .replace(TELEGRAM_TOKEN_PATTERN, REDACTION)
@@ -12,6 +15,9 @@ export function redactString(input: string): string {
     .replace(ASSIGNMENT_PATTERN, (_whole, key) => `${key}=${REDACTION}`);
 }
 
+/**
+ * Recursively redact sensitive fields from arbitrary structured payloads.
+ */
 export function redactUnknown(value: unknown, depth = 0): unknown {
   if (depth > 4) {
     return '[TRUNCATED]';
@@ -48,6 +54,9 @@ export function redactUnknown(value: unknown, depth = 0): unknown {
   return String(value);
 }
 
+/**
+ * Detect placeholder token values used in docs/examples.
+ */
 export function looksLikePlaceholderToken(token: string): boolean {
   const normalized = String(token || '').trim().toLowerCase();
   if (!normalized) {

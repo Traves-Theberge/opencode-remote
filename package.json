@@ -1,7 +1,7 @@
 {
   "name": "opencode-remote",
   "version": "1.2.7",
-  "description": "OpenCode Remote Control via WhatsApp and Telegram",
+  "description": "OpenCode Remote Control via Telegram",
   "private": true,
   "type": "module",
   "main": "apps/daemon/src/index.ts",
@@ -15,7 +15,6 @@
     "start": "npm --workspace @opencode-remote/daemon run start",
     "dev": "npm --workspace @opencode-remote/daemon run dev",
     "cli": "npm --workspace @opencode-remote/cli run start --",
-    "tui": "npm --workspace @opencode-remote/tui run start",
     "docker:redeploy": "bash scripts/docker-redeploy.sh",
     "hooks:install": "bash scripts/install-git-hook-post-commit.sh",
     "typecheck": "tsc --noEmit -p tsconfig.json",
@@ -32,16 +31,13 @@
     "conf": "^15.1.0",
     "pino": "^10.3.1",
     "pino-pretty": "^13.0.0",
-    "qrcode": "^1.5.4",
-    "uuid": "^13.0.0",
-    "whatsapp-web.js": "^1.26.0"
+    "uuid": "^13.0.0"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/qrcode": "^1.5.6",
     "eslint": "^10.0.2",
     "globals": "^17.4.0",
     "tsx": "^4.20.5",

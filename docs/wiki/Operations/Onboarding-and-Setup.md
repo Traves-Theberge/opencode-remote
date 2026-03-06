@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Document recommended first-time setup for daemon, Telegram, and WhatsApp.
+Document recommended first-time setup for daemon and Telegram.
 
 ## Source files
 
@@ -12,7 +12,7 @@ Document recommended first-time setup for daemon, Telegram, and WhatsApp.
 
 ## Diagram(s)
 
-- `docs/architecture/13-deployment-runtime.md`
+- `docs/ARCHITECTURE.md`
 
 ## Key invariants
 

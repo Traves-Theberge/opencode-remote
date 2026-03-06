@@ -1,11 +1,10 @@
 # Onboarding Guide
 
-This guide covers first-time setup using the new CLI/TUI management flows.
+This guide covers first-time setup using the CLI management flow.
 
 ## Prerequisites
 
 - Node.js `>= 20`
-- Bun `>= 1.3` (for TUI)
 - OpenCode server running locally (`http://localhost:4096` default)
 
 ## Path A: CLI Wizard (Recommended)
@@ -47,7 +46,7 @@ npm start
 
 ## Path A2: Docker (Lightweight)
 
-Docker mode is optimized for Telegram-first operation and keeps WhatsApp disabled by default.
+Docker mode is optimized for Telegram-first operation.
 
 1) Start OpenCode server on host:
 
@@ -104,21 +103,6 @@ Token posture check:
 ```bash
 npm run cli -- security rotate-token-check
 ```
-
-## Path B: TUI Flow
-
-Run:
-
-```bash
-npm run tui
-```
-
-Current behavior:
-
-- TUI shows onboarding-required state if owner is not configured.
-- TUI shows management dashboard summary (owner, db path, telegram mode, table counts).
-- TUI includes flow visualizer and transition tracker from recent audit events.
-- Use CLI wizard for step-by-step configuration input while TUI onboarding controls are expanded.
 
 ## Post-setup Validation
 

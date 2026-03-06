@@ -1,6 +1,5 @@
 import { logger } from './core/logger.js';
 import { config } from './core/config.js';
-import { WhatsAppTransport } from './transport/whatsapp.js';
 import { TelegramTransport } from './transport/telegram.js';
 import { AccessController } from './access/controller.js';
 import type { SessionState } from './access/controller.js';
@@ -15,6 +14,9 @@ import { looksLikePlaceholderToken } from './security/redaction.js';
 import { TransformersAsr } from './media/asr.js';
 import { unlink } from 'node:fs/promises';
 
+/**
+ * Media attachment metadata forwarded from Telegram transport.
+ */
 interface IncomingMediaPayload {
   kind: 'voice' | 'audio' | 'image';
   mimeType: string;
@@ -23,8 +25,11 @@ interface IncomingMediaPayload {
   caption?: string;
 }
 
+/**
+ * Normalized inbound transport event.
+ */
 interface IncomingMessageEvent {
-  channel?: 'whatsapp' | 'telegram';
+  channel?: 'telegram';
   from?: string;
   body?: string;
   messageId?: string | null;
@@ -36,11 +41,17 @@ interface IncomingMessageEvent {
   media?: IncomingMediaPayload;
 }
 
+/**
+ * Routed intent envelope from command router.
+ */
 interface RoutedIntent {
   type: string;
   [key: string]: unknown;
 }
 
+/**
+ * OpenCode global event envelope variants.
+ */
 interface GlobalEventEnvelope {
   payload?: { type?: string; properties?: Record<string, unknown> };
   id?: string;
@@ -50,6 +61,9 @@ interface GlobalEventEnvelope {
   };
 }
 
+/**
+ * Dead-letter callback payload from transport layer.
+ */
 interface DeadLetterEvent {
   channel: string;
   messageId: string | null;
@@ -60,16 +74,25 @@ interface DeadLetterEvent {
   payload?: unknown;
 }
 
+/**
+ * Minimal transport contract used by app dispatcher.
+ */
 type TransportLike = {
   send: (to: string, text: string) => Promise<void>;
   stop: () => Promise<void>;
 };
 
+/**
+ * Token bucket state used for ingress rate limiting.
+ */
 interface TokenBucket {
   tokens: number;
   lastRefillAt: number;
 }
 
+/**
+ * Main application runtime orchestrator.
+ */
 class App {
   store: LocalStore;
   access: AccessController;
@@ -78,7 +101,6 @@ class App {
   safety: SafetyEngine;
   formatter: MessageFormatter;
   executor: CommandExecutor;
-  whatsappTransport: WhatsAppTransport;
   telegramTransport: TelegramTransport;
   transports: Map<string, TransportLike>;
   stopEventStream: (() => void) | null;
@@ -108,18 +130,12 @@ class App {
       this.store,
       this.getRuntimeStatus.bind(this),
     );
-    this.whatsappTransport = new WhatsAppTransport(this.handleMessage.bind(this), {
-      onDeadLetter: this.handleTransportDeadLetter.bind(this),
-    });
     this.telegramTransport = new TelegramTransport(this.handleMessage.bind(this), {
       onDeadLetter: this.handleTransportDeadLetter.bind(this),
       onPollingConflict: this.handleTelegramPollingConflict.bind(this),
       onPollingRecovered: this.handleTelegramPollingRecovered.bind(this),
     });
-    this.transports = new Map<string, TransportLike>([
-      ['whatsapp', this.whatsappTransport],
-      ['telegram', this.telegramTransport],
-    ]);
+    this.transports = new Map<string, TransportLike>([['telegram', this.telegramTransport]]);
     this.stopEventStream = null;
     this.messageQueues = new Map();
     this.instanceId = randomUUID();
@@ -161,6 +177,9 @@ class App {
     this.installShutdownHandlers();
   }
 
+  /**
+   * Log runtime identity and effective transport config snapshot.
+   */
   logRuntimeFingerprint() {
     const token = String(config.get('telegram.botToken') || '');
     const tokenFingerprint = token
@@ -185,6 +204,9 @@ class App {
     );
   }
 
+  /**
+   * Start subscription to OpenCode global event stream.
+   */
   async startEventMonitor() {
     try {
       this.stopEventStream = await this.adapter.subscribeGlobalEvents(
@@ -196,6 +218,9 @@ class App {
     }
   }
 
+  /**
+   * Process global OpenCode events relevant to remote transport UX.
+   */
   async handleGlobalEvent(eventEnvelope: unknown) {
     const normalized = eventEnvelope as GlobalEventEnvelope;
     const payload = normalized?.payload || normalized?.data?.payload;
@@ -234,6 +259,9 @@ class App {
     }
   }
 
+  /**
+   * Validate required runtime configuration before startup.
+   */
   validateConfig() {
     const ownerNumber = String(config.get('security.ownerNumber') || '').trim();
     if (!ownerNumber) {
@@ -279,7 +307,7 @@ class App {
    * Process inbound message from any transport and return user-facing response text.
    */
   async handleMessage(event: IncomingMessageEvent): Promise<string | null> {
-    const channel = event?.channel || 'whatsapp';
+    const channel = event?.channel || 'telegram';
     const rawFrom = event?.from || '';
     const sender = this.resolveSender(event);
 
@@ -513,6 +541,9 @@ class App {
     });
   }
 
+  /**
+   * Serialize message handling per sender identity.
+   */
   withSenderLock(sender: string, task: () => Promise<string | null>) {
     const key = sender || 'unknown';
     // Serialize work per sender to prevent overlapping runs and interleaved
@@ -529,10 +560,16 @@ class App {
     return current;
   }
 
+  /**
+   * Append structured audit event.
+   */
   auditEvent(type: string, payload: unknown): void {
     this.store.appendAudit(type, payload);
   }
 
+  /**
+   * Persist dead-letter transport failures and corresponding audit event.
+   */
   async handleTransportDeadLetter(event: DeadLetterEvent): Promise<void> {
     this.store.appendDeadLetter({
       channel: event.channel,
@@ -552,8 +589,11 @@ class App {
     });
   }
 
+  /**
+   * Resolve canonical sender phone from transport event.
+   */
   resolveSender(event: IncomingMessageEvent): string {
-    const channel = event?.channel || 'whatsapp';
+    const channel = event?.channel || 'telegram';
     if (channel === 'telegram') {
       const userId = String(event?.userId || '').trim();
       if (!userId) {
@@ -565,8 +605,11 @@ class App {
     return config.normalizePhone(event?.from || '');
   }
 
+  /**
+   * Resolve sender key used for inbound deduplication.
+   */
   resolveDedupSender(event: IncomingMessageEvent, sender: string): string {
-    const channel = event?.channel || 'whatsapp';
+    const channel = event?.channel || 'telegram';
     if (channel === 'telegram') {
       const userId = String(event?.userId || '').trim();
       if (userId) {
@@ -577,10 +620,16 @@ class App {
     return sender || config.normalizePhone(event?.from || '') || String(event?.from || 'unknown');
   }
 
+  /**
+   * Build stable composite dedupe key for inbound messages.
+   */
   buildDedupKey(channel: string, sender: string, messageId: string): string {
     return `${channel}:${sender}:${String(messageId || '')}`;
   }
 
+  /**
+   * Seed owner Telegram binding from configured owner user id.
+   */
   seedOwnerTelegramIdentity() {
     const ownerPhone = config.normalizePhone(config.get('security.ownerNumber'));
     const ownerUserId = String(config.get('telegram.ownerUserId') || '').trim();
@@ -594,10 +643,10 @@ class App {
     });
   }
 
+  /**
+   * Start configured transports and polling lease workflow.
+   */
   async startEnabledTransports() {
-    if (config.get('whatsapp.enabled')) {
-      await this.whatsappTransport.start();
-    }
     if (config.get('telegram.enabled')) {
       const pollingEnabled = Boolean(config.get('telegram.pollingEnabled'));
       const webhookEnabled = Boolean(config.get('telegram.webhookEnabled'));
@@ -612,6 +661,9 @@ class App {
     }
   }
 
+  /**
+   * Acquire polling lease before starting Telegram polling mode.
+   */
   async ensureTelegramPollingLease() {
     const acquired = this.store.acquireTransportLease('telegram-polling', this.instanceId, 60_000);
     if (!acquired) {
@@ -640,6 +692,9 @@ class App {
     }
   }
 
+  /**
+   * Start periodic lease renewal heartbeat.
+   */
   startPollingLeaseHeartbeat() {
     if (this.leaseHeartbeat) {
       return;
@@ -653,6 +708,9 @@ class App {
     }, 20_000);
   }
 
+  /**
+   * Schedule retry loop for polling lease acquisition.
+   */
   schedulePollingLeaseRetry() {
     if (this.leaseAcquireRetry) {
       return;
@@ -680,7 +738,6 @@ class App {
       telegram: this.telegramTransport.getHealth(),
       channels: {
         telegramEnabled: Boolean(config.get('telegram.enabled')),
-        whatsappEnabled: Boolean(config.get('whatsapp.enabled')),
       },
       build: {
         version: process.env.npm_package_version || 'unknown',
@@ -694,6 +751,9 @@ class App {
     };
   }
 
+  /**
+   * Send message via named transport channel.
+   */
   async sendChannel(channel: string, to: string, text: string) {
     const transport = this.transports.get(channel);
     if (!transport?.send) {
@@ -702,15 +762,18 @@ class App {
     await transport.send(to, text);
   }
 
+  /**
+   * Deliver message to available channels for a user binding.
+   */
   async sendToAvailableChannels(phoneNumber: string, telegramChatId: string | null, text: string) {
-    if (config.get('whatsapp.enabled')) {
-      await this.sendChannel('whatsapp', phoneNumber, text);
-    }
     if (config.get('telegram.enabled') && telegramChatId) {
       await this.sendChannel('telegram', telegramChatId, text);
     }
   }
 
+  /**
+   * Initialize session workspace root from OpenCode current path.
+   */
   async ensureSessionWorkspace(session: SessionState): Promise<void> {
     if (this.access.getWorkspaceRoot(session)) {
       return;
@@ -722,10 +785,16 @@ class App {
     }
   }
 
+  /**
+   * Check whether inbound message was already processed.
+   */
   isDuplicate(dedupKey: string): boolean {
     return this.store.isMessageProcessed(dedupKey);
   }
 
+  /**
+   * Decide whether command should emit immediate progress acknowledgement.
+   */
   shouldSendProgress(commandType: string): boolean {
     const longRunning = new Set([
       'prompt',
@@ -739,11 +808,17 @@ class App {
     return longRunning.has(commandType);
   }
 
+  /**
+   * Decide whether command output should be stored in run history.
+   */
   shouldStoreRun(commandType: string): boolean {
     const nonStored = new Set(['output.get', 'output.runs', 'status', 'help', 'diff', 'summarize']);
     return !nonStored.has(commandType);
   }
 
+  /**
+   * Create short progress acknowledgement text.
+   */
   formatProgressAck(commandType: string): string {
     const templates = [
       // Running/Executing
@@ -792,6 +867,9 @@ class App {
     return message;
   }
 
+  /**
+   * Register process shutdown handlers and cleanup routines.
+   */
   installShutdownHandlers() {
     const confirmCleanupInterval = setInterval(() => {
       this.access.cleanupExpiredConfirms();
@@ -814,7 +892,6 @@ class App {
         this.stopEventStream();
         this.stopEventStream = null;
       }
-      await this.whatsappTransport.stop();
       await this.telegramTransport.stop();
       await this.adapter.stop();
       process.exit(0);
@@ -824,6 +901,9 @@ class App {
     process.on('SIGTERM', stop);
   }
 
+  /**
+   * Enforce env-only secret policy for sensitive keys.
+   */
   enforceEnvOnlySecret(key: string, options: { requiredWhen?: boolean } = {}): void {
     const required = options.requiredWhen !== false;
     const persisted = String(config.getPersisted(key) || '').trim();
@@ -840,6 +920,9 @@ class App {
     }
   }
 
+  /**
+   * Apply sender and global token-bucket ingress limits.
+   */
   checkIngressRateLimit(sender: string): { limited: boolean; scope: 'global' | 'sender'; retryAfterMs: number } {
     const senderRate = Math.max(1, Number(config.get('security.ingressPerSenderPerMinute')) || 30);
     const globalRate = Math.max(1, Number(config.get('security.ingressGlobalPerMinute')) || 240);
@@ -876,6 +959,9 @@ class App {
     return { limited: false, scope: 'sender', retryAfterMs: 0 };
   }
 
+  /**
+   * Consume a single token from bucket, refilling by elapsed time.
+   */
   consumeFromBucket(bucket: TokenBucket, perMinute: number, burst: number, now: number): boolean {
     const elapsedMs = Math.max(0, now - bucket.lastRefillAt);
     const refillPerMs = perMinute / 60_000;
@@ -892,6 +978,9 @@ class App {
     return true;
   }
 
+  /**
+   * Estimate milliseconds until next token becomes available.
+   */
   estimateRetryMs(bucket: TokenBucket, perMinute: number, now: number): number {
     const refillPerMs = perMinute / 60_000;
     if (refillPerMs <= 0) {
@@ -905,6 +994,9 @@ class App {
     return Math.max(250, Math.ceil((1 - tokensNow) / refillPerMs));
   }
 
+  /**
+   * Notify owner when polling conflicts exceed alert threshold.
+   */
   async notifyOwnerAboutPollingConflict(conflictCount: number, retryInMs: number): Promise<void> {
     const owner = config.normalizePhone(config.get('security.ownerNumber'));
     if (!owner) {
@@ -925,6 +1017,9 @@ class App {
     }
   }
 
+  /**
+   * Handle Telegram polling conflict callback and alert throttling.
+   */
   handleTelegramPollingConflict(event: {
     conflictCount: number;
     retryInMs: number;
@@ -954,6 +1049,9 @@ class App {
     }
   }
 
+  /**
+   * Reset polling-conflict alert state after recovery.
+   */
   handleTelegramPollingRecovered(event: { recoveredAt: number }): void {
     this.auditEvent('telegram.polling_recovered', event);
     this.telegramConflictAlertedAtCount = 0;

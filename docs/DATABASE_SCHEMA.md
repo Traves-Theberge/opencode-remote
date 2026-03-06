@@ -82,7 +82,7 @@ Indexes:
 | Column | Type | Notes |
 |---|---|---|
 | dedup_key | TEXT PK | Composite key: `channel:sender:transport_message_id` |
-| channel | TEXT | Transport channel (`whatsapp`, `telegram`) |
+| channel | TEXT | Transport channel (`telegram`, `legacy`) |
 | sender | TEXT | Sender identity used for dedupe scope |
 | transport_message_id | TEXT | Native message/update ID from transport |
 | created_at | INTEGER | Epoch ms |
@@ -113,7 +113,7 @@ Indexes:
 | Column | Type | Notes |
 |---|---|---|
 | id | INTEGER PK AUTOINCREMENT | Row id |
-| channel | TEXT | Transport channel (`whatsapp`, `telegram`) |
+| channel | TEXT | Transport channel (`telegram`, `legacy`) |
 | message_id | TEXT | Inbound message/update id |
 | sender | TEXT | Sender identity snapshot |
 | body | TEXT | Input text or callback data |
@@ -126,4 +126,4 @@ Indexes:
 
 - OpenCode session internals remain in OpenCode.
 - SQLite stores control-plane metadata and cache summaries.
-- Transport channels (WhatsApp/Telegram) do not own app state.
+- Transport channels do not own app state.

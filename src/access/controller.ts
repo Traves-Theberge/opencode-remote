@@ -4,6 +4,9 @@ import { config } from '../core/config.js';
 import { logger } from '../core/logger.js';
 import type { LocalStore } from '../storage/sqlite.js';
 
+/**
+ * In-memory session state tracked per normalized sender identity.
+ */
 export interface SessionState {
   id: string;
   phoneNumber: string;
@@ -18,12 +21,18 @@ export interface SessionState {
   confirmed?: boolean;
 }
 
+/**
+ * Persisted confirmation payload for dangerous command replay.
+ */
 interface ConfirmAction {
   type: string;
   args: string[];
   context: { sender?: string; role?: string };
 }
 
+/**
+ * Access decision with resolved caller role.
+ */
 interface AccessCheckResult {
   allowed: boolean;
   role: 'owner' | 'user' | 'denied';
@@ -58,6 +67,9 @@ export class AccessController {
     };
   }
 
+  /**
+   * Check whether a number is the configured owner.
+   */
   isOwner(phoneNumber: string): boolean {
     return this.store.isOwner(config.normalizePhone(phoneNumber));
   }
@@ -94,14 +106,23 @@ export class AccessController {
     return session;
   }
 
+  /**
+   * Mark session execution state to prevent overlapping work.
+   */
   setBusy(session: SessionState, busy: boolean): void {
     session.busy = Boolean(busy);
   }
 
+  /**
+   * Read current busy flag for the session.
+   */
   isBusy(session: SessionState): boolean {
     return Boolean(session.busy);
   }
 
+  /**
+   * Set workspace root and persist binding metadata.
+   */
   setWorkspaceRoot(session: SessionState, workspaceRoot: string): void {
     if (typeof workspaceRoot !== 'string' || !workspaceRoot.trim()) {
       return;
@@ -116,10 +137,16 @@ export class AccessController {
     this.persistBinding(session);
   }
 
+  /**
+   * Get configured workspace root for the session.
+   */
   getWorkspaceRoot(session: SessionState): string | null {
     return session.workspaceRoot;
   }
 
+  /**
+   * Resolve effective working directory for command execution.
+   */
   getCwd(session: SessionState): string | null {
     return session.cwd || session.workspaceRoot;
   }
@@ -149,15 +176,24 @@ export class AccessController {
     return { ok: true, cwd: candidate };
   }
 
+  /**
+   * Persist currently selected OpenCode session id for caller.
+   */
   setActiveSessionId(session: SessionState, sessionId: string | null): void {
     session.activeSessionId = sessionId || null;
     this.persistBinding(session);
   }
 
+  /**
+   * Read currently selected OpenCode session id.
+   */
   getActiveSessionId(session: SessionState): string | null {
     return session.activeSessionId || null;
   }
 
+  /**
+   * Resolve in-memory session by active OpenCode session id.
+   */
   findSessionByActiveSessionId(sessionId: string): SessionState | null {
     if (!sessionId) {
       return null;
@@ -177,6 +213,9 @@ export class AccessController {
     return this.sessions.get(binding.phone) || null;
   }
 
+  /**
+   * Lock session when inactivity timeout is exceeded.
+   */
   checkInactivity(session: SessionState): boolean {
     const timeout = Number(config.get('security.inactivityTimeout')) || 15 * 60 * 1000;
     const inactive = Date.now() - session.lastActivity > timeout;
@@ -188,12 +227,18 @@ export class AccessController {
     return session.locked;
   }
 
+  /**
+   * Add allowlisted phone number.
+   */
   addAllowedNumber(number: string, addedBy: string): void {
     const normalized = config.normalizePhone(number);
     this.store.addOrActivateUser(normalized, 'user');
     logger.info({ addedBy, number: normalized }, 'Number added to allowlist');
   }
 
+  /**
+   * Remove allowlisted phone number and evict cached session.
+   */
   removeAllowedNumber(number: string, removedBy: string): void {
     const normalized = config.normalizePhone(number);
     this.store.deactivateUser(normalized);
@@ -201,6 +246,9 @@ export class AccessController {
     logger.info({ removedBy, number: normalized }, 'Number removed from allowlist');
   }
 
+  /**
+   * Bind Telegram identity to an allowlisted phone number.
+   */
   bindTelegramUser(
     phone: string,
     telegramUserId: string,
@@ -222,15 +270,24 @@ export class AccessController {
     );
   }
 
+  /**
+   * Remove Telegram identity binding by Telegram user id.
+   */
   unbindTelegramUser(telegramUserId: string, actor: string): void {
     this.store.clearTelegramIdentityByUserId(telegramUserId);
     logger.info({ actor, telegramUserId }, 'Telegram identity unbound from user');
   }
 
+  /**
+   * List active phone-to-Telegram identity bindings.
+   */
   listTelegramBindings() {
     return this.store.listTelegramBindings();
   }
 
+  /**
+   * List active allowlisted phone numbers.
+   */
   listAllowedNumbers(): string[] {
     return this.store.listAllowedNumbers();
   }
@@ -271,10 +328,16 @@ export class AccessController {
     return { valid: true, action: pending.action };
   }
 
+  /**
+   * Delete expired confirmation rows from storage.
+   */
   cleanupExpiredConfirms(): void {
     this.store.cleanupConfirmations();
   }
 
+  /**
+   * Evict stale in-memory sessions while preserving busy sessions.
+   */
   cleanupStaleSessions(): void {
     const now = Date.now();
     const maxAgeMs = Number(config.get('security.sessionMaxAge')) || 24 * 60 * 60 * 1000;
@@ -303,6 +366,9 @@ export class AccessController {
     }
   }
 
+  /**
+   * Persist mutable session binding state in SQLite.
+   */
   persistBinding(session: SessionState): void {
     this.store.upsertBinding(session.phoneNumber, {
       activeSessionId: session.activeSessionId,

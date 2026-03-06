@@ -11,8 +11,8 @@ Document the adapter boundary that isolates SDK endpoint shapes from command rou
 
 ## Diagram(s)
 
-- `docs/architecture/03-components.md`
-- `docs/architecture/07-sequence-permission-updated-fanout.md`
+- `docs/ARCHITECTURE.md`
+- `docs/wiki/End-to-End-Guide.md`
 
 ## Key invariants
 
@@ -31,5 +31,5 @@ Document the adapter boundary that isolates SDK endpoint shapes from command rou
 
 ## Related pages
 
-- `docs/wiki/Architecture/Control-Plane-Namespaces.md`
-- `docs/wiki/Architecture/Request-Lifecycle.md`
+- `docs/COMMAND_MODEL.md`
+- `docs/ARCHITECTURE.md`

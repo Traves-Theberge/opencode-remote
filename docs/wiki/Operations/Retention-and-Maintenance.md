@@ -11,7 +11,7 @@ Describe safe DB maintenance and retention controls for operational tables.
 
 ## Diagram(s)
 
-- `docs/architecture/12-data-flow-persistence.md`
+- `docs/DATABASE_SCHEMA.md`
 
 ## Key invariants
 
@@ -31,5 +31,5 @@ Describe safe DB maintenance and retention controls for operational tables.
 
 ## Related pages
 
-- `docs/wiki/Architecture/Data-Model-and-Persistence.md`
+- `docs/DATABASE_SCHEMA.md`
 - `docs/wiki/Operations/Runbook.md`

@@ -3,17 +3,16 @@
 ## System Roles
 
 - OpenCode: source of truth for coding sessions, prompts, tools, and permission state.
-- WhatsApp (`whatsapp-web.js`) and Telegram (Bot API): command and response transport channels.
+- Telegram (Bot API): command and response transport channel.
 - Local SQLite (`better-sqlite3`): control-plane state for routing, authz, idempotency, and cached output retrieval.
 - Monorepo operator surfaces:
   - `apps/daemon` runtime entrypoint
   - `apps/cli` onboarding/maintenance interface
-  - `apps/tui` visual operations cockpit
   - `packages/bridge` shared task and management contract
 
 ## Request Lifecycle
 
-1. Message arrives through transport (`src/transport/whatsapp.ts` or `src/transport/telegram.ts`).
+1. Message arrives through transport (`src/transport/telegram.ts`).
 2. `src/index.ts` normalizes sender and applies idempotency check (`messages` table).
 3. `src/access/controller.ts` checks allowlist and user role from SQLite.
 4. `src/router/index.ts` maps chat content:

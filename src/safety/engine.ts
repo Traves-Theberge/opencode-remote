@@ -1,5 +1,8 @@
 import { config } from '../core/config.js';
 
+/**
+ * Intent types that require explicit user confirmation before execution.
+ */
 const DANGEROUS_TYPES = new Set([
   'run',
   'shell',

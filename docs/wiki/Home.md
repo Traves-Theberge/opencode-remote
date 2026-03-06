@@ -7,17 +7,17 @@ Deep reference for architecture, operations, integrations, security, and develop
 ## Start Here (Recommended)
 
 - Deepwiki entrypoint: `docs/wiki/End-to-End-Guide.md`
-- Quick architecture pass: `docs/wiki/Architecture/System-Overview.md`
+- Quick architecture pass: `docs/ARCHITECTURE.md`
 - Runtime operations pass: `docs/wiki/Operations/Runbook.md`
 
 ## Sections
 
 - Architecture
-  - `docs/wiki/Architecture/System-Overview.md`
-  - `docs/wiki/Architecture/Request-Lifecycle.md`
-  - `docs/wiki/Architecture/Control-Plane-Namespaces.md`
-  - `docs/wiki/Architecture/State-Machines.md`
-  - `docs/wiki/Architecture/Data-Model-and-Persistence.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/COMMAND_MODEL.md`
+  - `docs/DATA_MODELS.md`
+  - `docs/DATABASE_SCHEMA.md`
+  - `docs/ERD.md`
 - Operations
   - `docs/wiki/Operations/Runbook.md`
   - `docs/wiki/Operations/Onboarding-and-Setup.md`
@@ -25,7 +25,6 @@ Deep reference for architecture, operations, integrations, security, and develop
   - `docs/wiki/Operations/Retention-and-Maintenance.md`
 - Integrations
   - `docs/wiki/Integrations/Telegram.md`
-  - `docs/wiki/Integrations/WhatsApp.md`
   - `docs/wiki/Integrations/OpenCode-SDK-Boundary.md`
 - Security
   - `docs/wiki/Security/Access-Control-and-Policy.md`
@@ -43,7 +42,7 @@ Deep reference for architecture, operations, integrations, security, and develop
   3) `docs/wiki/Operations/Troubleshooting.md`
 - Contributor (feature work):
   1) `docs/wiki/End-to-End-Guide.md`
-  2) `docs/wiki/Architecture/Request-Lifecycle.md`
+  2) `docs/ARCHITECTURE.md`
   3) `docs/wiki/Development/Testing-Strategy.md`
 - Security reviewer:
   1) `docs/wiki/End-to-End-Guide.md`
@@ -53,7 +52,7 @@ Deep reference for architecture, operations, integrations, security, and develop
 ## Key invariants
 
 - README remains quickstart; wiki is detailed reference.
-- Architecture diagrams under `docs/architecture/` are canonical visual artifacts.
+- Architecture references are maintained in `docs/ARCHITECTURE.md`.
 
 ## Operational checks
 
@@ -63,4 +62,4 @@ Deep reference for architecture, operations, integrations, security, and develop
 ## Related pages
 
 - `docs/README.md`
-- `docs/architecture/01-system-context.md`
+- `docs/ARCHITECTURE.md`

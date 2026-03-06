@@ -12,8 +12,8 @@ Explain dangerous command blocking and confirmation token behavior.
 
 ## Diagram(s)
 
-- `docs/architecture/06-sequence-dangerous-confirmation.md`
-- `docs/architecture/10-state-confirmation-lifecycle.md`
+- `docs/ARCHITECTURE.md`
+- `docs/COMMAND_MODEL.md`
 
 ## Key invariants
 
@@ -33,4 +33,4 @@ Explain dangerous command blocking and confirmation token behavior.
 ## Related pages
 
 - `docs/wiki/Security/Access-Control-and-Policy.md`
-- `docs/wiki/Architecture/State-Machines.md`
+- `docs/ARCHITECTURE.md`

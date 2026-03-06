@@ -3,11 +3,17 @@ import type { OpenCodeAdapter } from '../adapter/opencode.js';
 import type { AccessController, SessionState } from '../access/controller.js';
 import type { LocalStore } from '../storage/sqlite.js';
 
+/**
+ * Generic routed intent payload.
+ */
 interface IntentBase {
   type: string;
   [key: string]: unknown;
 }
 
+/**
+ * Runtime status snapshot consumed by `/status` and diagnostics output.
+ */
 interface RuntimeStatus {
   telegram: {
     mode: string;
@@ -20,7 +26,6 @@ interface RuntimeStatus {
   };
   channels: {
     telegramEnabled: boolean;
-    whatsappEnabled: boolean;
   };
   build?: {
     version: string;
@@ -33,6 +38,9 @@ interface RuntimeStatus {
   };
 }
 
+/**
+ * Intent executor that bridges router intents to adapter/store actions.
+ */
 export class CommandExecutor {
   adapter: OpenCodeAdapter;
   access: AccessController;
@@ -61,7 +69,6 @@ export class CommandExecutor {
         },
         channels: {
           telegramEnabled: false,
-          whatsappEnabled: false,
         },
         lease: {
           ownerId: null,
@@ -90,7 +97,6 @@ export class CommandExecutor {
           `🧵 Active session: ${context.sessionId || '(none)'}`,
           `📂 CWD: ${context.directory || '(unset)'}`,
           `📡 Telegram: ${runtime.channels.telegramEnabled ? runtime.telegram.state : 'disabled'} (${runtime.telegram.mode})`,
-          `📱 WhatsApp: ${runtime.channels.whatsappEnabled ? 'enabled' : 'disabled'}`,
           runtime.build ? `🏷️ Build: ${runtime.build.version} (${runtime.build.buildId})` : '',
           runtime.telegram.pollingConflictCount > 0
             ? `⚠️ Telegram polling conflicts: ${runtime.telegram.pollingConflictCount} (retry in ${Math.ceil(runtime.telegram.pollingPausedForMs / 1000)}s)`
@@ -191,7 +197,7 @@ export class CommandExecutor {
 
       case 'session.new': {
         const created = await this.adapter.createSession(
-          String(intent.title || 'WhatsApp Remote Session'),
+          String(intent.title || 'OpenCode Remote Session'),
           context,
         );
         const createdId = String(created?.id || '');
@@ -468,6 +474,9 @@ export class CommandExecutor {
     return JSON.stringify(value, null, 2);
   }
 
+  /**
+   * Build compact provider/model summary for chat output.
+   */
   formatModelProvidersSummary(value: unknown, providerFilter = ''): string {
     const providers = this.extractProviders(value);
     const filtered = providerFilter
@@ -522,6 +531,9 @@ export class CommandExecutor {
     return lines.join('\n');
   }
 
+  /**
+   * Extract provider list from multiple response shapes.
+   */
   extractProviders(value: unknown): Array<{ id?: string; name?: string; models?: unknown }> {
     if (Array.isArray(value)) {
       return value as Array<{ id?: string; name?: string; models?: unknown }>;

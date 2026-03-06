@@ -13,7 +13,7 @@ Define allowlist/owner model and command-level policy enforcement.
 
 ## Diagram(s)
 
-- `docs/architecture/09-state-session-lifecycle.md`
+- `docs/ARCHITECTURE.md`
 
 ## Key invariants
 

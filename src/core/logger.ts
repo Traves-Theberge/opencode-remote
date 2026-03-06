@@ -1,6 +1,8 @@
 import pino from 'pino';
 
-/** Shared structured logger for daemon/runtime modules. */
+/**
+ * Shared structured logger instance for runtime modules.
+ */
 const logger = pino({
   transport: {
     target: 'pino-pretty',
@@ -19,4 +21,7 @@ const logger = pino({
   },
 });
 
+/**
+ * Structured application logger.
+ */
 export { logger };

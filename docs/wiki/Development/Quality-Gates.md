@@ -12,7 +12,7 @@ Define release gate expectations and code health checks.
 
 ## Diagram(s)
 
-- `docs/architecture/03-components.md`
+- `docs/ARCHITECTURE.md`
 
 ## Key invariants
 

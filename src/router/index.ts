@@ -2,6 +2,9 @@ import { logger } from '../core/logger.js';
 import { config } from '../core/config.js';
 import type { SessionState } from '../access/controller.js';
 
+/**
+ * Normalized command produced by router parsing.
+ */
 interface ParsedCommand {
   command: string;
   tier: string;
@@ -9,11 +12,17 @@ interface ParsedCommand {
   raw: string;
 }
 
+/**
+ * Caller context attached to routed commands.
+ */
 interface RouteContext {
   sender: string;
   role: string;
 }
 
+/**
+ * Access controller contract required by the router.
+ */
 interface AccessControllerLike {
   createConfirm(action: { type: string; args: string[]; context: RouteContext }, session: SessionState): string;
   verifyConfirm(
@@ -77,6 +86,9 @@ const COMMAND_TIERS = {
   abort: 'dangerous',
 };
 
+/**
+ * Deterministic slash-command router and intent mapper.
+ */
 export class CommandRouter {
   accessController: AccessControllerLike;
 
@@ -105,6 +117,9 @@ export class CommandRouter {
     return this.parseSlashCommand(content);
   }
 
+  /**
+   * Parse slash-prefixed command text into canonical command name and args.
+   */
   parseSlashCommand(content: string): ParsedCommand {
     const line = content.slice(1).trim();
     const parts = line.split(/\s+/).filter(Boolean);
@@ -186,6 +201,9 @@ export class CommandRouter {
     }
   }
 
+  /**
+   * Parse `/users ...` namespace commands.
+   */
   parseUsers(parts: string[]): ParsedCommand {
     const action = (parts[0] || '').toLowerCase();
     if (action === 'list') {
@@ -209,6 +227,9 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
+  /**
+   * Parse `/session ...` namespace commands.
+   */
   parseSession(parts: string[]): ParsedCommand {
     const action = (parts[0] || '').toLowerCase();
     if (action === 'list') {
@@ -229,12 +250,18 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
+  /**
+   * Parse permission response commands.
+   */
   parsePermission(parts: string[]): ParsedCommand {
     const permissionId = parts[0] || '';
     const response = (parts[1] || 'once').toLowerCase();
     return this.toParsed('permission reply', [permissionId, response]);
   }
 
+  /**
+   * Parse `/project ...` namespace commands.
+   */
   parseProject(parts: string[]): ParsedCommand {
     const action = (parts[0] || '').toLowerCase();
     if (action === 'use') {
@@ -243,6 +270,9 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
+  /**
+   * Parse `/model ...` namespace commands.
+   */
   parseModel(parts: string[]): ParsedCommand {
     const action = (parts[0] || 'status').toLowerCase();
     if (action === 'status') {
@@ -257,6 +287,9 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
+  /**
+   * Parse `/tools ...` namespace commands.
+   */
   parseTools(parts: string[]): ParsedCommand {
     const action = (parts[0] || 'ids').toLowerCase();
     if (action === 'ids') {
@@ -268,6 +301,9 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
+  /**
+   * Parse `/mcp ...` namespace commands.
+   */
   parseMcp(parts: string[]): ParsedCommand {
     const action = (parts[0] || 'status').toLowerCase();
     if (action === 'status') {
@@ -285,6 +321,9 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
+  /**
+   * Parse `/skills ...` namespace commands.
+   */
   parseSkills(parts: string[]): ParsedCommand {
     const action = (parts[0] || 'list').toLowerCase();
     if (action === 'list') {
@@ -293,6 +332,9 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
+  /**
+   * Parse `/opencode ...` namespace commands.
+   */
   parseOpencode(parts: string[]): ParsedCommand {
     const action = (parts[0] || 'status').toLowerCase();
     if (action === 'status') {
@@ -310,6 +352,9 @@ export class CommandRouter {
     return this.toParsed('help', []);
   }
 
+  /**
+   * Extract first valid phone token from argument list.
+   */
   extractPhone(tokens: string[]): string {
     for (const token of tokens) {
       const normalized = config.normalizePhone(token);
@@ -320,6 +365,9 @@ export class CommandRouter {
     return '';
   }
 
+  /**
+   * Build parsed command object with resolved safety tier.
+   */
   toParsed(command: string, args: string[]): ParsedCommand {
     const tier =
       command in COMMAND_TIERS
@@ -356,6 +404,9 @@ export class CommandRouter {
     return handler(args, session);
   }
 
+  /**
+   * Resolve command handler by canonical command name.
+   */
   getHandler(command: string) {
     const handlers = {
       status: this.handleStatus.bind(this),
@@ -763,10 +814,16 @@ Admin (owner only):
 • /lock | /unlock`;
   }
 
+  /**
+   * Render confirmation challenge message for dangerous commands.
+   */
   formatPendingConfirmation(confirmId: string, command: string): string {
     return `⚠️ This action (${command}) requires confirmation.\n\nConfirmation ID: \`${confirmId}\`\n\nReply with:\n/confirm ${confirmId}\n\nThis confirmation expires in 5 minutes.`;
   }
 
+  /**
+   * Render router-level error response.
+   */
   formatError(message: string): string {
     return `❌ Error: ${message}`;
   }

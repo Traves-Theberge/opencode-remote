@@ -7,13 +7,12 @@ Common diagnostics for transport, policy, and execution issues.
 ## Source files
 
 - `src/transport/telegram.ts`
-- `src/transport/whatsapp.ts`
 - `src/index.ts`
 - `docs/OPERATIONS.md`
 
 ## Diagram(s)
 
-- `docs/architecture/11-state-transport-retry-deadletter.md`
+- `docs/OPERATIONS.md`
 
 ## Key invariants
 
@@ -34,4 +33,4 @@ Common diagnostics for transport, policy, and execution issues.
 ## Related pages
 
 - `docs/wiki/Security/Access-Control-and-Policy.md`
-- `docs/wiki/Integrations/WhatsApp.md`
+- `docs/wiki/Integrations/Telegram.md`
