@@ -54,7 +54,7 @@ This context is loaded and persisted through the `bindings` table, including opt
 
 - Message idempotency: `messages.dedup_key` composite key (`channel:sender:transport_message_id`).
 - Confirmation TTL enforcement: `confirmations.expires_at` cleanup.
-- Durable run retrieval: `runs` table for `/runs` and `/get <id>`.
+- Durable run retrieval: `runs` table for `/last` and `/get <id>` (`/runs` remains as legacy alias).
 - Durable audit trail: `audit` table.
 - Dead-letter capture: `dead_letters` table for failed inbound transport updates.
 

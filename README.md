@@ -383,6 +383,7 @@ npm run verify
 ## Documentation
 
 - `docs/README.md`
+- `docs/wiki/End-to-End-Guide.md` (deepwiki-style navigation + end-to-end operator flow)
 - `docs/architecture/` (diagram set)
 - `docs/wiki/Home.md`
 - `docs/ARCHITECTURE.md`

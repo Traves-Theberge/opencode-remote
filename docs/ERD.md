@@ -86,6 +86,6 @@ erDiagram
 
 - `bindings.active_session_id` maps users to OpenCode sessions.
 - `confirmations.action_json` stores serialized intent payloads for dangerous action approval.
-- `runs` is a retrieval cache for channel-friendly output lookup (`/runs`, `/get`).
+- `runs` is a retrieval cache for channel-friendly output lookup (`/last`, `/get`; `/runs` is legacy alias).
 - `event_offsets` supports durable stream checkpointing for OpenCode global events.
 - `dead_letters` captures failed inbound updates after retry exhaustion.

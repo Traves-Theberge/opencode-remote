@@ -4,6 +4,12 @@
 
 Deep reference for architecture, operations, integrations, security, and development workflows.
 
+## Start Here (Recommended)
+
+- Deepwiki entrypoint: `docs/wiki/End-to-End-Guide.md`
+- Quick architecture pass: `docs/wiki/Architecture/System-Overview.md`
+- Runtime operations pass: `docs/wiki/Operations/Runbook.md`
+
 ## Sections
 
 - Architecture
@@ -28,6 +34,21 @@ Deep reference for architecture, operations, integrations, security, and develop
   - `docs/wiki/Development/Monorepo-Structure.md`
   - `docs/wiki/Development/Testing-Strategy.md`
   - `docs/wiki/Development/Quality-Gates.md`
+
+## Role-based reading paths
+
+- Operator (day-2):
+  1) `docs/wiki/End-to-End-Guide.md`
+  2) `docs/wiki/Operations/Runbook.md`
+  3) `docs/wiki/Operations/Troubleshooting.md`
+- Contributor (feature work):
+  1) `docs/wiki/End-to-End-Guide.md`
+  2) `docs/wiki/Architecture/Request-Lifecycle.md`
+  3) `docs/wiki/Development/Testing-Strategy.md`
+- Security reviewer:
+  1) `docs/wiki/End-to-End-Guide.md`
+  2) `docs/wiki/Security/Access-Control-and-Policy.md`
+  3) `docs/wiki/Security/Safety-Engine-and-Confirmations.md`
 
 ## Key invariants
 

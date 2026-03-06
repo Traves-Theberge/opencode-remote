@@ -25,6 +25,8 @@ All notable changes to this project are documented in this file.
 - Post-commit hook now supports env-only secret mode (`OPENCODE_REMOTE_POST_COMMIT_ENV_ONLY_SECRETS=1`) to skip `.env` fallback token/chat reads.
 - Added regression tests for vision model override routing, request-local big-pickle fallback, Telegram hard line splitting, and transient send retries.
 - Added exhaustive tracked-file review checklist documenting deep vs surface review status across the full repository.
+- Expanded documentation to include a deepwiki-style end-to-end guide with architecture map, contributor/operator/security paths, and diagram index.
+- Clarified run retrieval docs to prefer `/last` + `/get` while marking `/runs` as legacy alias.
 
 ### Added
 
