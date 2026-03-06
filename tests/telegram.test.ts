@@ -180,6 +180,62 @@ test('limits oversized telegram outputs to avoid chat floods', () => {
   assert.equal(limited[7], 'chunk-20');
 });
 
+test('hard-splits single oversized lines to respect Telegram message size limits', () => {
+  const transport = new TelegramTransportStub(async () => null);
+  const line = 'x'.repeat(9500);
+  const chunks = transport.chunkMessage(line, 4096);
+
+  assert.equal(chunks.length, 3);
+  assert.equal(chunks[0].length, 4096);
+  assert.equal(chunks[1].length, 4096);
+  assert.equal(chunks[2].length, 1308);
+});
+
+test('send retries transient network errors before succeeding', async () => {
+  class RetryProbe extends TelegramTransport {
+    attempts = 0;
+    waits: number[] = [];
+
+    constructor() {
+      super(async () => null);
+      this.running = true;
+    }
+
+    async api(method, body) {
+      if (method !== 'sendMessage') {
+        return { ok: true, result: [] };
+      }
+
+      this.attempts += 1;
+      if (this.attempts === 1) {
+        throw new Error('fetch failed: read ECONNRESET');
+      }
+
+      return { ok: true, result: body };
+    }
+
+    async sleep(ms: number): Promise<void> {
+      this.waits.push(ms);
+    }
+  }
+
+  const restore = withConfig({
+    'telegram.sendMaxRetries': 3,
+    'telegram.sendChunkDelayMs': 0,
+  });
+
+  try {
+    const probe = new RetryProbe();
+    await probe.send('123', 'hello');
+
+    assert.equal(probe.attempts, 2);
+    assert.equal(probe.waits.length, 1);
+    assert.ok(probe.waits[0] >= 1000);
+  } finally {
+    restore();
+  }
+});
+
 test('polling loop does not overlap concurrent getUpdates requests', async () => {
   class PollingProbe extends TelegramTransport {
     current = 0;

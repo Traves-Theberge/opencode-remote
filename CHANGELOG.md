@@ -23,6 +23,7 @@ All notable changes to this project are documented in this file.
 - Added deep system audit report covering security posture, reliability risks, dead-code review, and ADR-style decision capture.
 - Added deep component-by-component review report across runtime, transports, adapter, storage, and operator surfaces.
 - Post-commit hook now supports env-only secret mode (`OPENCODE_REMOTE_POST_COMMIT_ENV_ONLY_SECRETS=1`) to skip `.env` fallback token/chat reads.
+- Added regression tests for vision model override routing, request-local big-pickle fallback, Telegram hard line splitting, and transient send retries.
 
 ### Added
 

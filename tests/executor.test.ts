@@ -141,3 +141,46 @@ test('executes advanced namespace intents through adapter', async () => {
   assert.equal(methods.includes('listSkills'), true);
   assert.equal(methods.includes('getDiagnostics'), true);
 });
+
+test('prompt intent applies Codex vision override for image/pdf attachments', async () => {
+  const calls: Array<{ text: string; options: Record<string, unknown> }> = [];
+  const adapter = {
+    async sendPrompt(text: string, options: Record<string, unknown>) {
+      calls.push({ text, options });
+      return { sessionId: 'sess-1', messageId: 'msg-1', response: 'ok' };
+    },
+  };
+
+  const executor = new CommandExecutor(adapter as never, new AccessStub() as never, new StoreStub() as never);
+
+  await executor.execute(
+    {
+      type: 'prompt',
+      text: 'describe this',
+      files: [
+        {
+          filePath: '/tmp/test.png',
+          mimeType: 'image/png',
+          filename: 'test.png',
+        },
+      ],
+    },
+    session,
+  );
+
+  await executor.execute(
+    {
+      type: 'prompt',
+      text: 'plain text only',
+      files: [],
+    },
+    session,
+  );
+
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0].options.modelOverride, {
+    providerID: 'openai',
+    modelID: 'gpt-5.3-codex',
+  });
+  assert.equal(calls[1].options.modelOverride, undefined);
+});

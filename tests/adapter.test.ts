@@ -54,3 +54,55 @@ test('adapter mcp connect/disconnect use path id shape', async () => {
   assert.equal(connectPayload.path?.id, 'docs');
   assert.equal(disconnectPayload.path?.id, 'docs');
 });
+
+test('adapter retries unsupported Codex account failures with request-local big-pickle override', async () => {
+  const adapter = new OpenCodeAdapter();
+  const promptCalls: Array<unknown> = [];
+
+  (adapter as unknown as { client: unknown }).client = {
+    session: {
+      create: async () => ({ data: { id: 'fresh-session' } }),
+      prompt: async (payload: unknown) => {
+        promptCalls.push(payload);
+        if (promptCalls.length === 1) {
+          return {
+            data: {
+              parts: [],
+              info: {
+                summary: { id: 'sum-1' },
+                error: {
+                  message:
+                    "The 'gpt-5.3-codex-spark' model is not supported when using Codex with a ChatGPT account.",
+                },
+              },
+            },
+          };
+        }
+
+        return {
+          data: {
+            parts: [{ type: 'text', text: 'fallback ok' }],
+            info: { id: 'msg-2' },
+          },
+        };
+      },
+      message: async () => ({ data: { parts: [] } }),
+    },
+    config: {
+      get: async () => ({ data: {} }),
+      providers: async () => ({ data: {} }),
+    },
+  };
+
+  const result = await adapter.sendPrompt('hello', { sessionId: 'orig-session' });
+  assert.equal(result.response, 'fallback ok');
+  assert.equal(promptCalls.length, 2);
+
+  const second = promptCalls[1] as {
+    body?: { model?: { providerID?: string; modelID?: string } };
+    path?: { id?: string };
+  };
+  assert.equal(second.path?.id, 'fresh-session');
+  assert.equal(second.body?.model?.providerID, 'opencode');
+  assert.equal(second.body?.model?.modelID, 'big-pickle');
+});
