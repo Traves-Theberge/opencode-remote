@@ -114,6 +114,7 @@ Disable temporarily with `OPENCODE_REMOTE_SKIP_POST_COMMIT_REDEPLOY=1`.
 Tune behavior with:
 - `OPENCODE_REMOTE_POST_COMMIT_DELAY_SEC=<seconds>`
 - `OPENCODE_REMOTE_POST_COMMIT_NOTIFY_TELEGRAM=0`
+- `OPENCODE_REMOTE_POST_COMMIT_ENV_ONLY_SECRETS=1` (do not read Telegram token/chat values from `.env` in hook)
 Hook logs are written to `data/post-commit-redeploy.log` when writable, otherwise `.git/post-commit-redeploy.log`.
 
 ## Initial Provisioning

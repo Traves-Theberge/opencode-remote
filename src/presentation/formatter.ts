@@ -182,11 +182,6 @@ export class MessageFormatter {
     return `${mode} - ${text}`;
   }
 
-  formatWithRunId(text: string, runId: string | null): string {
-    void runId;
-    return text;
-  }
-
   formatRunLookup(item: { id: string; commandType: string; createdAt: number; raw: string } | null) {
     if (!item) {
       return 'Run Lookup - Run ID not found.';

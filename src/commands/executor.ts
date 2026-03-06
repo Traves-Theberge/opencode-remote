@@ -112,6 +112,8 @@ export class CommandExecutor {
         const files = Array.isArray(intent.files)
           ? (intent.files as Array<{ filePath: string; mimeType: string; filename?: string }>)
           : [];
+        // Keep vision handling deterministic regardless of global default model.
+        // Media prompts opt into a known vision-capable model per request.
         const hasVisionInput = files.some((file) => /^(image\/|application\/pdf$)/i.test(String(file.mimeType || '')));
         const result = await this.adapter.sendPrompt(String(intent.text || ''), {
           ...context,

@@ -696,6 +696,8 @@ export class TelegramTransport {
         return;
       }
 
+      // Telegram hard-rejects overlong payloads, so split even single long
+      // lines into fixed-size slices as a final guard.
       let offset = 0;
       while (offset < normalized.length) {
         chunks.push(normalized.slice(offset, offset + maxLength));

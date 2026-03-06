@@ -485,7 +485,7 @@ class App {
           ok: true,
           runId,
         });
-        return this.formatter.formatWithRunId(output, runId);
+        return output;
       } catch (error) {
         logger.error({ err: error, sender, command: intent.type }, 'Command execution failed');
         this.auditEvent('command.executed', {
@@ -515,6 +515,8 @@ class App {
 
   withSenderLock(sender: string, task: () => Promise<string | null>) {
     const key = sender || 'unknown';
+    // Serialize work per sender to prevent overlapping runs and interleaved
+    // transport replies for the same user identity.
     const previous = this.messageQueues.get(key) || Promise.resolve();
     const current = previous.catch(() => null).then(() => task());
     const queued = current.finally(() => {

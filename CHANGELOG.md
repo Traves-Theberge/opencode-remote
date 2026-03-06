@@ -19,6 +19,10 @@ All notable changes to this project are documented in this file.
 - Telegram delivery now hard-splits oversized chunks and retries transient send failures (`ECONNRESET`/fetch errors) to improve response reliability.
 - Vision inputs (image/PDF) now force `openai/gpt-5.3-codex` per request.
 - Codex unsupported-account fallback now retries once with `opencode/big-pickle` as a request-local override instead of mutating global model config.
+- Removed no-op run-id passthrough formatter path by returning execution output directly from app runtime.
+- Added deep system audit report covering security posture, reliability risks, dead-code review, and ADR-style decision capture.
+- Added deep component-by-component review report across runtime, transports, adapter, storage, and operator surfaces.
+- Post-commit hook now supports env-only secret mode (`OPENCODE_REMOTE_POST_COMMIT_ENV_ONLY_SECRETS=1`) to skip `.env` fallback token/chat reads.
 
 ### Added
 

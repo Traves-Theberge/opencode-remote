@@ -130,6 +130,9 @@ export class OpenCodeAdapter {
       }
 
       if (this.shouldRetryWithFreshSession(data?.info, response, options)) {
+        // Some OpenCode/Codex account combinations reject the configured model at
+        // runtime. Retry once in a fresh session with a request-local fallback so
+        // we recover the reply without mutating global model configuration.
         logger.warn({ sessionId, messageId }, 'Prompt failed due unsupported model; retrying once with big-pickle override');
         const fresh = await this.createSession('WhatsApp Remote Session', options);
         return this.sendPrompt(text, {

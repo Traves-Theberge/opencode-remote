@@ -30,6 +30,7 @@ fi
 LOG_FILE="$LOG_DIR/post-commit-redeploy.log"
 REDEPLOY_DELAY_SEC="${OPENCODE_REMOTE_POST_COMMIT_DELAY_SEC:-45}"
 NOTIFY_TELEGRAM="${OPENCODE_REMOTE_POST_COMMIT_NOTIFY_TELEGRAM:-1}"
+ENV_ONLY_SECRETS="${OPENCODE_REMOTE_POST_COMMIT_ENV_ONLY_SECRETS:-0}"
 
 read_env_var() {
   local key="$1"
@@ -67,10 +68,12 @@ send_telegram_notice() {
   local bot_token="${TELEGRAM_BOT_TOKEN:-}"
   local chat_id="${TELEGRAM_OWNER_USER_ID:-}"
 
-  if [[ -z "$bot_token" ]]; then
+  # Optional hardening mode: require explicit process env for secrets and
+  # do not read token/chat values from local .env files.
+  if [[ "$ENV_ONLY_SECRETS" != "1" && -z "$bot_token" ]]; then
     bot_token="$(read_env_var TELEGRAM_BOT_TOKEN || true)"
   fi
-  if [[ -z "$chat_id" ]]; then
+  if [[ "$ENV_ONLY_SECRETS" != "1" && -z "$chat_id" ]]; then
     chat_id="$(read_env_var TELEGRAM_OWNER_USER_ID || true)"
   fi
 
