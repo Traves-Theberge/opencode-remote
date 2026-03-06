@@ -19,6 +19,9 @@ Document Telegram transport modes, callback normalization, and policy behavior.
 - webhook mode wins when both webhook and polling are enabled.
 - callback and text updates normalize to shared command model.
 - non-private chats are denied by default.
+- media updates (voice/image/document-image) are normalized into prompt inputs.
+- image/PDF prompts are routed with a per-request `openai/gpt-5.3-codex` override.
+- unsupported-account Codex failures retry once with request-local `opencode/big-pickle` fallback.
 
 ## Failure modes
 

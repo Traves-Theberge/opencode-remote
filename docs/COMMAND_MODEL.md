@@ -69,3 +69,5 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 - Voice/audio messages are transcribed locally (Transformers ASR) and routed as prompt text.
 - Image/photo messages are attached to prompt calls as file parts.
 - Image messages without caption use a default prompt: `Please analyze this image.`
+- Image/PDF prompts force a per-request model override to `openai/gpt-5.3-codex` for vision support.
+- If Codex returns the known unsupported-account error, one request-local retry is attempted with `opencode/big-pickle`.

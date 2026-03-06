@@ -184,6 +184,22 @@ Notes:
   - `ASR_ENABLED=true`
   - `ASR_MODEL=Xenova/whisper-small`
 
+### Image Recognition Configuration
+
+To ensure Telegram image/PDF prompts are processed with a vision-capable model:
+
+- Configure OpenCode with an OpenAI-capable model such as `openai/gpt-5.3-codex`.
+- Keep media flags enabled:
+  - `MEDIA_ENABLED=true`
+  - `MEDIA_IMAGE_ENABLED=true`
+- Verify OpenCode provider access includes the selected model.
+
+Current daemon behavior:
+
+- Image/PDF prompt requests apply a per-request model override to `openai/gpt-5.3-codex`.
+- If Codex returns the known unsupported-account error, the request retries once with `opencode/big-pickle`.
+- This fallback is request-local and does not permanently change your global model setting.
+
 ## Monorepo Layout
 
 - `apps/daemon/` - workspace-native daemon entrypoint
