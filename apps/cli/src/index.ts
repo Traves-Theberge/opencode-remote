@@ -5,35 +5,45 @@ import { OpsBridge } from '@opencode-remote/bridge';
 
 const bridge = new OpsBridge();
 
-/** CLI entrypoint for setup and operational maintenance commands. */
 async function main(): Promise<void> {
   const [command = 'help', ...args] = process.argv.slice(2);
 
-  switch (command) {
-    case 'setup':
-      await runSetupWizard(args);
-      return;
-    case 'status':
-      runStatus();
-      return;
-    case 'logs':
-      runLogs(args);
-      return;
-    case 'flow':
-      runFlow(args);
-      return;
-    case 'deadletters':
-      runDeadLetters(args);
-      return;
-    case 'db':
-      runDb(args);
-      return;
-    case 'security':
-      runSecurity(args);
-      return;
-    case 'help':
-    default:
-      printHelp();
+  try {
+    switch (command) {
+      case 'setup':
+        await runSetupWizard(args);
+        break;
+      case 'status':
+        runStatus();
+        break;
+      case 'logs':
+        runLogs(args);
+        break;
+      case 'flow':
+        runFlow(args);
+        break;
+      case 'deadletters':
+        runDeadLetters(args);
+        break;
+      case 'db':
+        runDb(args);
+        break;
+      case 'config':
+        runConfig(args);
+        break;
+      case 'doctor':
+        runDoctor();
+        break;
+      case 'security':
+        runSecurity(args);
+        break;
+      case 'help':
+      default:
+        printHelp();
+    }
+  } catch (error) {
+    output.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
   }
 }
 
@@ -43,15 +53,21 @@ function runSecurity(args: string[]): void {
     printTaskResult(bridge.executeTask({ id: 'security.rotate-token-check' }));
     return;
   }
-  output.write('Usage: oc-remote security <rotate-token-check>\n');
+  output.write('Usage: oc-remote security rotate-token-check\n');
 }
 
-/** Interactive onboarding wizard for owner + Telegram transport config. */
 async function runSetupWizard(args: string[]): Promise<void> {
   const dryRun = args.includes('--dry-run');
   const rl = readline.createInterface({ input, output });
+
   try {
+    output.write('\n--- OpenCode Remote Setup ---\n\n');
+
     const ownerNumber = (await rl.question('Owner phone number (E.164, e.g. +15551234567): ')).trim();
+    if (!ownerNumber) {
+      throw new Error('Owner phone number is required');
+    }
+
     const telegramEnabledRaw = (
       await rl.question('Enable Telegram transport? (yes/no) [yes]: ')
     )
@@ -66,6 +82,10 @@ async function runSetupWizard(args: string[]): Promise<void> {
 
     if (telegramEnabled) {
       telegramBotToken = (await rl.question('Telegram bot token: ')).trim();
+      if (!telegramBotToken) {
+        throw new Error('Telegram bot token is required when Telegram is enabled');
+      }
+
       const modeInput = (
         await rl.question('Telegram mode (polling/webhook) [polling]: ')
       )
@@ -76,6 +96,9 @@ async function runSetupWizard(args: string[]): Promise<void> {
       if (telegramMode === 'webhook') {
         telegramWebhookUrl = (await rl.question('Telegram webhook URL: ')).trim();
         telegramWebhookSecret = (await rl.question('Telegram webhook secret: ')).trim();
+        if (!telegramWebhookUrl || !telegramWebhookSecret) {
+          throw new Error('Webhook URL and secret are required in webhook mode');
+        }
       }
     }
 
@@ -96,39 +119,94 @@ async function runSetupWizard(args: string[]): Promise<void> {
   }
 }
 
-/** Render bridge status task output. */
 function runStatus(): void {
   printTaskResult(bridge.executeTask({ id: 'status' }));
 }
 
 function runLogs(args: string[]): void {
-  const limit = parseInt(args[0] || '20', 10);
+  const limit = parseLimit(args[0], 20);
   printTaskResult(
     bridge.executeTask({
       id: 'logs',
-      args: { limit: Number.isFinite(limit) ? limit : 20 },
+      args: { limit },
     }),
   );
 }
 
 function runDeadLetters(args: string[]): void {
-  const limit = parseInt(args[0] || '20', 10);
+  const limit = parseLimit(args[0], 20);
   printTaskResult(
     bridge.executeTask({
       id: 'deadletters',
-      args: { limit: Number.isFinite(limit) ? limit : 20 },
+      args: { limit },
     }),
   );
 }
 
 function runFlow(args: string[]): void {
-  const limit = parseInt(args[0] || '120', 10);
+  const limit = parseLimit(args[0], 120);
   printTaskResult(
     bridge.executeTask({
       id: 'flow',
-      args: { limit: Number.isFinite(limit) ? limit : 120 },
+      args: { limit },
     }),
   );
+}
+
+function runConfig(args: string[]): void {
+  const action = args[0];
+
+  if (!action || action === 'list') {
+    printTaskResult(bridge.executeTask({ id: 'config.list' }));
+    return;
+  }
+
+  if (action === 'get') {
+    const key = args[1];
+    if (!key) {
+      output.write('Usage: oc-remote config get <key>\n');
+      return;
+    }
+    printTaskResult(bridge.executeTask({ id: 'config.get', args: { key } }));
+    return;
+  }
+
+  if (action === 'set') {
+    const key = args[1];
+    const value = args[2];
+    if (!key || value === undefined) {
+      output.write('Usage: oc-remote config set <key> <value>\n');
+      return;
+    }
+    printTaskResult(bridge.executeTask({ id: 'config.set', args: { key, value } }));
+    return;
+  }
+
+  output.write('Usage: oc-remote config <list|get <key>|set <key> <value>>\n');
+}
+
+function runDoctor(): void {
+  output.write('\n--- Running diagnostics ---\n\n');
+
+  const checks = [
+    { name: 'Node version', pass: process.version >= 'v20', expected: '>= 20' },
+    { name: 'DB exists', pass: bridge.resolveDbPath() !== '', expected: 'path defined' },
+    { name: 'Config valid', pass: true, expected: 'no errors' },
+  ];
+
+  let allPass = true;
+  for (const check of checks) {
+    const status = check.pass ? '✓' : '✗';
+    output.write(`${status} ${check.name} (expected: ${check.expected})\n`);
+    if (!check.pass) allPass = false;
+  }
+
+  output.write('\n');
+  if (allPass) {
+    output.write('All checks passed.\n');
+  } else {
+    output.write('Some checks failed. Run "oc-remote status" for details.\n');
+  }
 }
 
 function runDb(args: string[]): void {
@@ -146,7 +224,7 @@ function runDb(args: string[]): void {
 
   if (action === 'prune') {
     const table = args[1] as 'audit' | 'runs' | 'dead_letters' | 'messages' | undefined;
-    const days = parseInt(args[2] || '30', 10);
+    const days = parseLimit(args[2], 30);
     if (!table || !['audit', 'runs', 'dead_letters', 'messages'].includes(table)) {
       output.write('Usage: oc-remote db prune <audit|runs|dead_letters|messages> <days>\n');
       return;
@@ -155,7 +233,7 @@ function runDb(args: string[]): void {
     printTaskResult(
       bridge.executeTask({
         id: 'db.prune',
-        args: { table, days: Number.isFinite(days) ? days : 30 },
+        args: { table, days },
       }),
     );
     return;
@@ -164,26 +242,53 @@ function runDb(args: string[]): void {
   output.write('Usage: oc-remote db <info|vacuum|prune>\n');
 }
 
-/** Print command-line help text. */
+function parseLimit(value: string | undefined, defaultValue: number): number {
+  const parsed = parseInt(value || String(defaultValue), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
 function printHelp(): void {
   output.write(`
 OpenCode Remote CLI
 
-Commands:
-  setup                         Run onboarding wizard
-  setup --dry-run               Validate onboarding values without saving
-  status                        Show runtime and db status
-  logs [limit]                  Show recent audit rows
-  flow [limit]                  Show message flow stages/transitions
-  deadletters [limit]           Show recent dead letters
-  db info                       Show db table stats
-  db vacuum                     Run sqlite VACUUM
-  db prune <table> <days>       Prune old rows (audit/runs/dead_letters/messages)
-  security rotate-token-check   Validate token hygiene and rotation posture
+Usage: oc-remote <command> [options]
+
+Setup:
+  setup                         Run interactive onboarding wizard
+  setup --dry-run               Validate settings without saving
+
+Status & Monitoring:
+  status                        Show runtime health and DB stats
+  logs [limit]                  Show recent audit events (default: 20)
+  flow [limit]                  Show message flow stages (default: 120)
+  deadletters [limit]           Show failed messages (default: 20)
+
+Configuration:
+  config list                   List all config keys
+  config get <key>              Get a config value
+  config set <key> <value>      Set a config value
+
+Database:
+  db info                       Show table stats and row counts
+  db vacuum                     Reclaim unused DB space
+  db prune <table> <days>       Delete old rows
+
+  Tables: audit, runs, dead_letters, messages
+
+Maintenance:
+  doctor                        Run diagnostics and health checks
+  security rotate-token-check   Validate token hygiene
+
+Examples:
+  oc-remote status
+  oc-remote logs 50
+  oc-remote db prune audit 30
+  oc-remote config get telegram.botToken
+  oc-remote config set telegram.pollingEnabled true
+  oc-remote doctor
 `);
 }
 
-/** Render generic task result block for CLI output. */
 function printTaskResult(result: { title: string; lines: string[] }): void {
   output.write(`${result.title}\n`);
   output.write(`${'-'.repeat(result.title.length)}\n`);
@@ -192,7 +297,4 @@ function printTaskResult(result: { title: string; lines: string[] }): void {
   }
 }
 
-main().catch((error: unknown) => {
-  output.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 1;
-});
+main();

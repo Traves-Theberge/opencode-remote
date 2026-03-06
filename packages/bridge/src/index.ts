@@ -71,7 +71,10 @@ export type TaskId =
   | 'db.info'
   | 'db.vacuum'
   | 'db.prune'
-  | 'security.rotate-token-check';
+  | 'security.rotate-token-check'
+  | 'config.list'
+  | 'config.get'
+  | 'config.set';
 
 interface TelegramPollingHealth {
   state: 'healthy' | 'degraded' | 'unknown';
@@ -397,6 +400,23 @@ export class OpsBridge {
         label: 'Security Rotate Check',
         description: 'Check token hygiene and rotation posture.',
       },
+      {
+        id: 'config.list',
+        label: 'Config List',
+        description: 'List all configuration keys and values.',
+      },
+      {
+        id: 'config.get',
+        label: 'Config Get',
+        description: 'Get a configuration value by key.',
+        args: ['key'],
+      },
+      {
+        id: 'config.set',
+        label: 'Config Set',
+        description: 'Set a configuration value.',
+        args: ['key', 'value'],
+      },
     ];
   }
 
@@ -522,6 +542,40 @@ export class OpsBridge {
         id: request.id,
         title: 'Security Rotate Check',
         lines: findings.length ? findings : ['No immediate token hygiene issues found.'],
+      };
+    }
+
+    if (request.id === 'config.list') {
+      return {
+        id: request.id,
+        title: 'Config',
+        lines: this.listConfig(),
+      };
+    }
+
+    if (request.id === 'config.get') {
+      const key = String(args.key || '');
+      if (!key) {
+        return { id: request.id, title: 'Config Get', lines: ['Usage: config get <key>'] };
+      }
+      return {
+        id: request.id,
+        title: `Config: ${key}`,
+        lines: [this.getConfig(key)],
+      };
+    }
+
+    if (request.id === 'config.set') {
+      const key = String(args.key || '');
+      const value = args.value;
+      if (!key || value === undefined) {
+        return { id: request.id, title: 'Config Set', lines: ['Usage: config set <key> <value>'] };
+      }
+      this.setConfig(key, String(value));
+      return {
+        id: request.id,
+        title: 'Config Set',
+        lines: [`${key} = ${value}`],
       };
     }
 
@@ -704,5 +758,41 @@ export class OpsBridge {
   private count(db: Database.Database, table: string): number {
     const row = db.prepare(`SELECT COUNT(1) as count FROM ${table}`).get() as { count?: number };
     return Number(row?.count || 0);
+  }
+
+  listConfig(): string[] {
+    const lines: string[] = [];
+    const config = this.store.store;
+    const walk = (obj: Record<string, unknown>, prefix = ''): void => {
+      for (const [key, value] of Object.entries(obj)) {
+        const fullKey = prefix ? `${prefix}.${key}` : key;
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          walk(value as Record<string, unknown>, fullKey);
+        } else {
+          const display = typeof value === 'string' ? value : JSON.stringify(value);
+          lines.push(`${fullKey}=${display}`);
+        }
+      }
+    };
+    walk(config as Record<string, unknown>);
+    return lines.sort();
+  }
+
+  getConfig(key: string): string {
+    const value = this.store.get(key);
+    if (value === undefined) {
+      return `(not set)`;
+    }
+    return typeof value === 'string' ? value : JSON.stringify(value);
+  }
+
+  setConfig(key: string, value: string): void {
+    let parsed: unknown = value;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      // use string as-is
+    }
+    this.store.set(key, parsed);
   }
 }
