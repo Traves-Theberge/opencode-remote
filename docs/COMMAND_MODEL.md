@@ -5,6 +5,7 @@
 - Prefix is optional (no prefix required).
 - Slash commands (`/...`) are parsed directly.
 - Plain text is treated as prompt input.
+- `/runs` is a legacy alias; prefer `/last` for latest output retrieval.
 
 ## Routing Rules
 

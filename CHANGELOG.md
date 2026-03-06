@@ -2,6 +2,10 @@
 
 All notable changes to this project are documented in this file.
 
+Historical note: older entries keep the command names that were accurate at the time
+of release (for example `@oc` prefix usage or `/runs`). Current command guidance is
+documented in `README.md` and `docs/COMMAND_MODEL.md`.
+
 ## [Unreleased]
 
 ### Changed
