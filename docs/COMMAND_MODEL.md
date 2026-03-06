@@ -56,14 +56,14 @@ This separation keeps natural-language intent handling inside OpenCode while pre
 
 - Deterministic control-plane commands are resolved by router/executor/adapter against explicit SDK calls.
 - Prompt pass-through (`<text>`) remains available for open-ended agent work.
-- Unknown slash commands intentionally fall back to prompt behavior to preserve usability.
+- Unknown slash commands return deterministic `Unknown command` errors with `/help` guidance.
 
 ## Edge Case Handling
 
 - Duplicate inbound transport message IDs are ignored via persisted dedupe table.
 - Per-user concurrency guard prevents simultaneous command overlap.
 - Path traversal is blocked outside workspace root.
-- Unknown slash command falls back to prompt intent.
+- Unknown slash command returns explicit error and does not execute as prompt input.
 
 ## Telegram Media Inputs
 

@@ -111,6 +111,10 @@ export class CommandRouter {
     const base = (parts[0] || '').toLowerCase();
     const rest = parts.slice(1);
 
+    if (!base) {
+      return this.toParsed('help', []);
+    }
+
     switch (base) {
       case 'help':
         return this.toParsed('help', []);
@@ -180,7 +184,7 @@ export class CommandRouter {
       case 'summary':
         return this.toParsed('summarize', rest[0] ? [rest[0]] : []);
       default:
-        return this.toParsed('prompt', [line]);
+        return this.toParsed(`/${base}`, rest);
     }
   }
 

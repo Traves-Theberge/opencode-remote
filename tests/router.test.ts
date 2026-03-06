@@ -70,6 +70,14 @@ test('routes slash commands without alias', async () => {
   assert.deepEqual(parsed.args, []);
 });
 
+test('keeps unknown slash commands deterministic (no prompt fallback)', async () => {
+  const router = new CommandRouter(new AccessControllerStub());
+  const parsed = await router.parse('/thiscommanddoesnotexist test');
+
+  assert.equal(parsed.command, '/thiscommanddoesnotexist');
+  assert.deepEqual(parsed.args, ['test']);
+});
+
 test('routes slash users add command', async () => {
   const router = new CommandRouter(new AccessControllerStub());
   const parsed = await router.parse('/users add +15551234567');

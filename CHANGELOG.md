@@ -31,6 +31,7 @@ documented in `README.md` and `docs/COMMAND_MODEL.md`.
 - Added exhaustive tracked-file review checklist documenting deep vs surface review status across the full repository.
 - Expanded documentation to include a deepwiki-style end-to-end guide with architecture map, contributor/operator/security paths, and diagram index.
 - Clarified run retrieval docs to prefer `/last` + `/get` while marking `/runs` as legacy alias.
+- Unknown slash commands now return deterministic errors instead of falling through to prompt execution.
 
 ### Added
 
