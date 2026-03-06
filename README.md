@@ -88,7 +88,7 @@ npm run docker:redeploy
 docker compose logs -f remote
 ```
 
-This redeploy command forces a no-cache image build and container recreate so Docker always runs the latest source changes.
+This redeploy command performs a cached image build and container recreate so Docker runs the latest source changes quickly.
 It also stamps each build with `OPENCODE_REMOTE_BUILD_ID` (git short SHA + timestamp by default) for runtime fingerprint verification.
 
 Install optional auto-redeploy on commit:

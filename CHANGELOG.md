@@ -13,8 +13,12 @@ All notable changes to this project are documented in this file.
 - Dockerfile layer ordering now caches `npm ci` unless dependency manifests change, avoiding repeated Transformers.js dependency rebuilds on normal source edits.
 - Post-commit auto-redeploy now sends Telegram owner notices before restart and after successful boot/failure.
 - Post-commit auto-redeploy now waits 45s by default before restart to improve completion-message delivery reliability.
-- Progress acknowledgements now use `Progress - ...` wording (removed `Working - ...`) and no longer fail command execution when Telegram send retries are exhausted.
-- Workspace package dependency alignment fixed for `@opencode-remote/bridge@0.2.5` in CLI/TUI to avoid Docker/npm install failures during redeploy.
+- Progress acknowledgements keep body-only text (for example, `Currently processing...`) and no longer fail command execution when Telegram send retries are exhausted.
+- Workspace package dependency alignment kept in sync for `@opencode-remote/bridge` in CLI/TUI to avoid Docker/npm install failures during redeploy.
+- Prompt transport now waits for post-send message hydration and surfaces backend error text instead of storing `(no response)` on empty immediate parts.
+- Telegram delivery now hard-splits oversized chunks and retries transient send failures (`ECONNRESET`/fetch errors) to improve response reliability.
+- Vision inputs (image/PDF) now force `openai/gpt-5.3-codex` per request.
+- Codex unsupported-account fallback now retries once with `opencode/big-pickle` as a request-local override instead of mutating global model config.
 
 ### Added
 

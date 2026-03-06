@@ -1,6 +1,6 @@
 {
   "name": "@opencode-remote/tui",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
@@ -9,7 +9,7 @@
     "dev": "bun --watch src/index.ts"
   },
   "dependencies": {
-    "@opencode-remote/bridge": "0.2.5",
+    "@opencode-remote/bridge": "0.2.6",
     "@opentui/core": "*"
   }
 }

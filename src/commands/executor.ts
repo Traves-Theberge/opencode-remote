@@ -112,9 +112,16 @@ export class CommandExecutor {
         const files = Array.isArray(intent.files)
           ? (intent.files as Array<{ filePath: string; mimeType: string; filename?: string }>)
           : [];
+        const hasVisionInput = files.some((file) => /^(image\/|application\/pdf$)/i.test(String(file.mimeType || '')));
         const result = await this.adapter.sendPrompt(String(intent.text || ''), {
           ...context,
           files,
+          modelOverride: hasVisionInput
+            ? {
+                providerID: 'openai',
+                modelID: 'gpt-5.3-codex',
+              }
+            : undefined,
         });
         this.access.setActiveSessionId(session, result.sessionId);
         return this.formatter.formatPromptResult(result);

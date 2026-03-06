@@ -217,6 +217,8 @@ Use:
 
 - Voice notes are transcribed locally via Transformers.js (`src/media/asr.ts`).
 - Image uploads are attached to prompt calls as OpenCode file parts.
+- Image/PDF prompts force a per-request model override to `openai/gpt-5.3-codex`.
+- If Codex returns the known unsupported-account model error, the request retries once with `opencode/big-pickle` override (without mutating global model config).
 
 Config keys:
 

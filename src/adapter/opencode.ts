@@ -10,6 +10,7 @@ interface AdapterContext {
   directory?: string | null;
   retryFreshSession?: boolean;
   allowBigPickleFallback?: boolean;
+  modelOverride?: { providerID: string; modelID: string };
 }
 
 interface PromptFileAttachment {
@@ -110,6 +111,7 @@ export class OpenCodeAdapter {
         path: { id: sessionId },
         body: {
           parts: this.buildPromptParts(text, options.files || []) as never,
+          model: options.modelOverride as never,
         },
         query: this.buildQuery(options),
       });
@@ -128,14 +130,17 @@ export class OpenCodeAdapter {
       }
 
       if (this.shouldRetryWithFreshSession(data?.info, response, options)) {
-        logger.warn({ sessionId, messageId }, 'Prompt failed due unsupported model; falling back to big-pickle');
-        await this.setModelById('opencode/big-pickle');
+        logger.warn({ sessionId, messageId }, 'Prompt failed due unsupported model; retrying once with big-pickle override');
         const fresh = await this.createSession('WhatsApp Remote Session', options);
         return this.sendPrompt(text, {
           ...options,
           sessionId: fresh.id,
           retryFreshSession: false,
           allowBigPickleFallback: false,
+          modelOverride: {
+            providerID: 'opencode',
+            modelID: 'big-pickle',
+          },
         });
       }
       
@@ -271,22 +276,6 @@ export class OpenCodeAdapter {
   isUnsupportedCodexModelError(message: string): boolean {
     const text = String(message || '').toLowerCase();
     return text.includes('model is not supported') && text.includes('chatgpt account');
-  }
-
-  async setModelById(model: string) {
-    const modelId = String(model || '').trim();
-    if (!modelId) {
-      throw new Error('Missing model id');
-    }
-
-    const current = await this.client.config.get();
-    const body = {
-      ...(current?.data || {}),
-      model: modelId,
-    };
-
-    const result = await this.client.config.update({ body: body as never });
-    return result?.data || null;
   }
 
   /** Execute command via command endpoint, with shell fallback compatibility. */
