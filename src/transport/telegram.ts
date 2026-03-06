@@ -670,6 +670,8 @@ export class TelegramTransport {
       return chunks;
     }
 
+    // Preserve first context chunks and final tail chunk, and insert one
+    // truncation notice in the middle so users still get actionable output.
     const headCount = Math.max(1, maxChunks - 2);
     const omittedCount = Math.max(0, chunks.length - headCount - 1);
     const tail = chunks[chunks.length - 1] || '';

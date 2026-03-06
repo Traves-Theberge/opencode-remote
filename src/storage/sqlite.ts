@@ -526,6 +526,8 @@ export class LocalStore {
       .run(dedupKey, channel, sender, transportMessageId, now);
     this.db
       .prepare('DELETE FROM messages WHERE created_at < ?')
+      // Keep dedup memory bounded while preserving enough window to catch
+      // Telegram/transport retries and duplicate update delivery.
       .run(now - 5 * 60 * 1000);
   }
 

@@ -58,6 +58,8 @@ export class SafetyEngine {
       return { allowed: false, reason: 'Multiline commands are not allowed' };
     }
 
+    // Block shell composition operators so only a single direct command is
+    // executed per request through this transport boundary.
     const forbidden = [
       { pattern: /;/, reason: 'Command chaining with ; is not allowed' },
       { pattern: /&&|\|\|/, reason: 'Logical command chaining is not allowed' },

@@ -193,6 +193,9 @@ export class OpenCodeAdapter {
     const intervalMs = Math.max(500, Number(config.get('opencode.promptResponsePollIntervalMs')) || 1500);
     const started = Date.now();
 
+    // The prompt endpoint can return before assistant parts are hydrated.
+    // Poll the message endpoint briefly so we return actual content when it
+    // arrives, while still surfacing explicit backend errors immediately.
     while (Date.now() - started < timeoutMs) {
       try {
         const result = await this.client.session.message({
